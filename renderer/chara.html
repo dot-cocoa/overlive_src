@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><title>【キャラの窓】OverLIVE</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg,#0a0e1a);-webkit-app-region:drag}
+#c{position:absolute;left:50%;top:50%;width:92vmin;height:92vmin;transform:translate(-50%,-50%)}
+#c img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:0;transition:opacity .18s}
+#c img.on{opacity:1}
+#c.idle{animation:float 3.2s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translate(-50%,-50%)}50%{transform:translate(-50%,-53%)}}
+#c.pop{animation:pop .45s ease-out}
+@keyframes pop{0%{transform:translate(-50%,-50%) scale(.86)}55%{transform:translate(-50%,-50%) scale(1.08)}100%{transform:translate(-50%,-50%) scale(1)}}
+#c.shake{animation:shake .5s linear}
+@keyframes shake{0%,100%{transform:translate(-50%,-50%)}15%{transform:translate(-53%,-50%) rotate(-3deg)}35%{transform:translate(-47%,-50%) rotate(3deg)}55%{transform:translate(-52%,-50%) rotate(-2deg)}75%{transform:translate(-48%,-50%) rotate(2deg)}}
+#c.jump{animation:jump .6s cubic-bezier(.2,.8,.3,1)}
+@keyframes jump{0%{transform:translate(-50%,-50%)}35%{transform:translate(-50%,-62%) scale(1.04)}70%{transform:translate(-50%,-48%) scale(.98,1.02)}100%{transform:translate(-50%,-50%)}}
+#c.dizzy{animation:dizzy 1.6s ease-in-out infinite}
+@keyframes dizzy{0%,100%{transform:translate(-50%,-50%) rotate(-4deg)}50%{transform:translate(-50%,-50%) rotate(4deg)}}
+</style></head>
+<body>
+<div id="c" class="idle"></div>
+<script src="model.js"></script>
+<script src="chara.js"></script>
+</body></html>

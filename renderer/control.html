@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<title>OverLIVE メニュー</title>
+<style>
+  :root { --bg: #0d1726; --panel: #15233a; --panel2: #1b2d4a; --line: #2a4466; --text: #dceaff; --muted: #8aa3c4; --accent: #4fd2ff; --ok: #4fd28a; --ng: #ff6b7a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 "Segoe UI", "Yu Gothic UI", sans-serif; }
+  header { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 12px 14px 0; border-bottom: 1px solid var(--line); }
+  main { padding: 6px 14px 18px; }
+  h3 { font-size: 13px; color: var(--muted); margin: 16px 0 8px; font-weight: 600; letter-spacing: .04em; }
+  p.hint, .hint { color: var(--muted); font-size: 12px; margin: 4px 0 8px; }
+  button { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px 8px; font: inherit; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  .toggle.on { background: #1d4a6e; border-color: var(--accent); }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  input[type=text] { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; width: 100%; font: inherit; }
+  .row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+  .row label.l { width: 80px; color: var(--muted); }
+  .row input[type=range] { flex: 1; accent-color: var(--accent); }
+  .row output { width: 40px; text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* 上部：HUD の ON/OFF と終了 */
+  .top { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; }
+  #helpBtn { background: #1d3a5a; border-color: var(--accent); }
+  a.q { float: right; font-size: 12px; color: var(--accent); text-decoration: none; cursor: pointer; font-weight: 400; }
+  a.q:hover { text-decoration: underline; }
+  #hudtoggle { font-weight: 600; }
+  #quit { background: #3a1a22; border-color: #8a3a48; }
+  #keyhint { color: var(--muted); font-size: 12px; margin: 6px 0 8px; white-space: pre-line; }
+  /* タブ */
+  nav { display: flex; gap: 2px; margin-top: 4px; }
+  nav button { flex: 1; border: none; border-radius: 8px 8px 0 0; background: transparent; color: var(--muted); padding: 8px 2px; }
+  nav button.cur { background: var(--panel2); color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
+  section { display: none; } section.cur { display: block; }
+
+  /* キャラ一覧 */
+  .chars { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+  .chara { position: relative; padding: 6px 6px 8px; text-align: center; background: var(--panel); border: 2px solid var(--line); border-radius: 10px; }
+  .chara img { width: 100%; aspect-ratio: 200/185; object-fit: cover; border-radius: 6px; background: #0a1322; display: block; }
+  .chara .nm { font-size: 12px; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chara.cur { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(79,210,255,.25); }
+  .chara .tag { position: absolute; top: 4px; left: 4px; font-size: 10px; padding: 1px 6px; border-radius: 6px; background: #2a6a4a; }
+  .chara .tag.art { left: auto; right: 4px; background: #6a4a8a; }
+  .box { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .box b { color: var(--accent); }
+
+  /* 枠の色 */
+  .swatches { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  .sw { padding: 8px 4px 6px; text-align: center; font-size: 12px; }
+  .sw i { display: block; height: 26px; margin: 0 auto 5px; width: 80%; border-radius: 6px; border: 3px solid currentColor; box-shadow: 0 0 10px currentColor, inset 0 0 8px currentColor; background: #0b1424; }
+  .sw.cur, .auto.cur { border-color: var(--accent); background: #1d4a6e; }
+  .sw[disabled] { opacity: .35; cursor: default; }
+  .auto { width: 100%; margin-bottom: 8px; }
+
+  /* 表示する項目（チェック） */
+  .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .check { display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; cursor: pointer; user-select: none; }
+  .check input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
+  .check small { color: var(--muted); display: block; font-size: 11px; }
+
+  #now, #reading, #perfbox { font: 12px/1.4 Consolas, monospace; color: var(--muted); white-space: pre-wrap; margin-top: 10px; }
+  #safety { background: #3a2a0e; border: 1px solid #f5b942; border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; line-height: 1.55; }
+  #ok { background: #1d5a3a; border-color: var(--ok); font-weight: 600; }
+  #ng { background: #5a1d24; border-color: var(--ng); }
+  #edtitle { font-weight: 700; font-size: 13px; letter-spacing: .06em; color: var(--accent); margin: 0 0 8px; }
+  .edchip { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 999px; background: #2a3f63; color: var(--accent); margin-left: 6px; vertical-align: 2px; }
+  .edchip.trial { background: #5a2a44; color: #ffb3d9; }
+  .chara .tag.star { background: #8a6a1a; }
+  .chara .none { width: 100%; aspect-ratio: 200/185; border-radius: 6px; background: repeating-linear-gradient(45deg, #0a1322 0 8px, #101d33 8px 16px); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 11px; }
+  #upsell, #update { background: #2a1a33; border: 1px solid #8a4a7a; border-radius: 10px; padding: 10px 12px; margin: 10px 0; font-size: 13px; }
+  #update { background: #12332a; border-color: var(--ok); }
+  #upsell button, #update button { margin-top: 8px; width: 100%; }
+  .frames2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+  .frames2 button { padding: 12px 6px; }
+  .frames2 button.cur { border-color: var(--accent); background: #1d4a6e; }
+  #bgPrev { position: relative; width: 452px; height: 163px; margin: 4px auto 10px; background: radial-gradient(ellipse at 50% 60%, #1b2a44, #070d18); border-radius: 8px; overflow: hidden; cursor: grab; touch-action: none; }
+  #bgPrev:active { cursor: grabbing; }
+  #bgPrev > * { position: absolute; left: 0; top: 0; width: 452px; height: 163px; pointer-events: none; }
+  #bgPrevBg { background-repeat: no-repeat; -webkit-mask-size: 100% 100%; -webkit-mask-repeat: no-repeat; }
+  #bgPrevFrame { z-index: 0; }
+  #bgPrevBg { z-index: 1; }
+  #toast { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); background: #1d5a3a; border: 1px solid var(--ok); border-radius: 8px; padding: 6px 12px; font-size: 12px; opacity: 0; transition: opacity .25s; pointer-events: none; }
+  #toast.on { opacity: 1; }
+  #checkOut { margin-top: 8px; font-size: 13px; line-height: 1.5; }
+  #checkOut .it { padding: 6px 8px; border-radius: 8px; margin-top: 4px; background: rgba(255,255,255,.05); }
+  #checkOut .it b { display: block; }
+  #checkOut .it small { opacity: .85; }
+  #checkOut .ok b::before { content: '○ '; color: #6fe3a0; }
+  #checkOut .warn b::before { content: '△ '; color: #ffc860; }
+  #checkOut .ng b::before { content: '× '; color: #ff6b7a; }
+  #checkOut .info b::before { content: '・ '; opacity: .7; }
+</style>
+</head>
+<body>
+<header>
+  <div id="safety" hidden>
+    <b>HUD が正しく見えていますか？</b><br>
+    画面に枠が出て、ゲームやデスクトップが透けて見えていれば OK です。<br>
+    押さないと <span id="sec">20</span> 秒後に自動で終了します（画面がふさがった場合の安全装置）。
+    <div class="grid2" style="margin-top:8px"><button id="ok">見えている（続ける）</button><button id="ng">おかしい（終了）</button></div>
+  </div>
+  <div id="edtitle"></div>
+  <div class="top"><button id="hudtoggle" class="toggle on">HUD 表示 ON</button><button id="helpBtn" title="説明書を開く">？ 使い方</button><button id="quit">終了</button></div>
+  <div id="keyhint"></div>
+  <div id="update" hidden><b>新しいバージョンがあります</b> <span id="updVer"></span><div id="updMsg" class="hint"></div><button id="updOpen">ダウンロードページを開く</button></div>
+  <nav>
+    <button data-tab="chara" class="cur">キャラ</button>
+    <button data-tab="frame">枠の色</button>
+    <button data-tab="bg" id="tabBg">背景</button>
+    <button data-tab="show">表示</button>
+    <button data-tab="setting">設定</button>
+    <button data-tab="test" id="tabTest">テスト</button>
+  </nav>
+</header>
+<main>
+  <!-- ===== キャラ ===== -->
+  <section id="tab-chara" class="cur">
+    <h3>キャラを選ぶ <a class="q" data-help="chara">？ このページの説明</a></h3>
+    <div class="chars" id="chars"></div>
+    <div id="upsell" hidden>
+      <b>体験版はAQUAだけ・プレイヤー枠だけ・表情3種です。</b><br>
+      <span class="hint">製品版（通常版）なら、8人のキャラ・味方やミニマップなど全部の枠・8種の表情・キラキラ演出が、時間制限なしで使えます。</span>
+      <button id="shop">BOOTH で見る</button>
+    </div>
+    <h3 id="myH">自分の画像を使う（マイキャラ） <a class="q" data-help="mychara">？ 詳しい手順</a></h3>
+    <div class="box" id="myBox">
+      <b>画像を置くだけで自動で追加されます。</b><br>
+      下のボタンでフォルダを開き、画像を入れてから「再読み込み」を押してください。<br>
+      <span class="hint">1枚だけなら全部の表情にその画像を使います。表情ごとに分けたいときは、フォルダを作って「通常.png」「被弾.png」…のように名前を付けます（フォルダ内の説明書を参照）。</span>
+      <div class="grid2" style="margin-top:8px"><button id="openMy">フォルダを開く</button><button id="rescan">再読み込み</button></div>
+      <div class="hint" id="mydir" style="word-break:break-all"></div>
+    </div>
+    <h3>枠に表示する名前</h3>
+    <div class="row"><input type="text" id="pname" maxlength="32" placeholder="（空欄にすると名前を出しません）"><button id="pnameSave" style="width:80px">反映</button></div>
+    <div class="row"><button id="pnameReset" style="flex:1">キャラの名前に戻す</button><button id="pnameClear" style="flex:1">名前を出さない</button></div>
+    <p class="hint">空欄で「反映」すると、枠に名前を表示しません（背景画像にロゴを入れて見せたいときなど）。</p>
+  </section>
+
+  <!-- ===== 枠の色 ===== -->
+  <section id="tab-frame">
+    <h3>枠のデザイン <a class="q" data-help="frame">？ このページの説明</a></h3>
+    <div class="frames2"><button id="frameAuto">飾りあり<br><small class="hint">キャラ専用の枠（猫耳など）</small></button><button id="framePlain">飾りなし<br><small class="hint">キャラに近い色のシンプルな枠</small></button></div>
+    <div id="colorBox">
+      <h3>好きな色にする</h3>
+      <p class="hint">飾りのないシンプルな枠です。どのキャラ・自分の画像とも組み合わせられます。</p>
+      <div class="swatches" id="swatches"></div>
+    </div>
+  </section>
+
+  <!-- ===== 枠の背景画像（カスタム版） ===== -->
+  <section id="tab-bg">
+    <h3>枠の背景に好きな画像を入れる <a class="q" data-help="background">？ このページの説明</a></h3>
+    <p class="hint">枠のパネル（濃い色の部分）にだけ入ります。HP・シールドなど、ゲームの表示が見える窓には入りません。</p>
+    <div class="grid2"><button id="bgPick">画像を選ぶ</button><button id="bgClear">画像を外す</button></div>
+    <div id="bgNone" class="hint" style="margin-top:8px">まだ画像が入っていません。</div>
+    <div id="bgBody" hidden>
+      <h3>プレビュー（自分の体力枠）<span class="hint">　ドラッグで移動・ホイールで拡大縮小</span></h3>
+      <div id="bgPrev"><div id="bgPrevBg"></div><img id="bgPrevFrame" alt=""></div>
+      <div class="row"><label class="l" for="bgScale">大きさ</label><input type="range" id="bgScale" min="20" max="800" value="100"><output for="bgScale">100</output></div>
+      <div class="row"><label class="l" for="bgX">横の位置</label><input type="range" id="bgX" min="-300" max="300" value="0"><output for="bgX">0</output></div>
+      <div class="row"><label class="l" for="bgY">縦の位置</label><input type="range" id="bgY" min="-300" max="300" value="0"><output for="bgY">0</output></div>
+      <div class="row"><label class="l" for="bgOpacity">濃さ</label><input type="range" id="bgOpacity" min="0" max="100" value="60"><output for="bgOpacity">60</output></div>
+      <div class="row"><label class="l" for="bgBright">明るさ</label><input type="range" id="bgBright" min="30" max="170" value="100"><output for="bgBright">100</output></div>
+      <div class="row"><label class="l" for="bgBlur">ぼかし</label><input type="range" id="bgBlur" min="0" max="12" value="0"><output for="bgBlur">0</output></div>
+      <div class="grid2"><button class="toggle" id="bgAdj">調整モード（Alt+B）</button><button id="bgReset">位置・濃さを元に戻す</button></div>
+      <p class="hint">調整モードにすると、画像が入る枠に点線が出ます。ゲーム画面で見え方を確かめながら、このメニューで直せます。</p>
+      <h3>画像を入れる枠</h3>
+      <div class="checks" id="bgTargets"></div>
+      <p class="hint">名前の位置にロゴを見せたいときは、「自分の体力枠」だけにして大きさ・位置を合わせ、「キャラ」タブで名前を空欄にしてください。</p>
+    </div>
+    <p class="hint" style="margin-top:12px">使える画像：自分で描いた絵・撮った写真、または権利者から「ゲーム画面での表示・配信での使用・加工」の許可をもらった画像。拾った画像・他人の絵は使えません。</p>
+  </section>
+
+  <!-- ===== 表示する項目 ===== -->
+  <section id="tab-show">
+    <h3>画面に出すもの <a class="q" data-help="show">？ このページの説明</a></h3>
+    <p class="hint">チェックを外した項目は表示しません（すぐ反映・次回も保存されます）。</p>
+    <div class="checks" id="checks"></div>
+    <h3>演出</h3>
+    <div class="checks" id="checks2"></div>
+  </section>
+
+  <!-- ===== 設定 ===== -->
+  <section id="tab-setting">
+    <h3>画面読み取り（ゲームの HP・シールドに反応） <a class="q" data-help="settings">？ このページの説明</a></h3>
+    <div class="grid2">
+      <button class="toggle on" id="read">読み取り ON</button>
+      <button class="toggle" id="regions">読み取り範囲を表示</button>
+    </div>
+    <div id="reading">—</div>
+    <div id="obsBox">
+      <h3>配信に出す（OBS） <a class="q" data-help="obs">？ 詳しい手順</a></h3>
+      <div class="box">
+        <b>OBS の「ブラウザ」ソースに下の URL を貼るだけ。</b><br>
+        <span class="hint">ゲームキャプチャの上に重ねると、配信にも HUD が出ます（表情・色の変化もそのまま）。</span>
+        <div class="row" style="margin-top:8px"><input type="text" id="obsUrl" readonly><button id="obsCopy" style="width:80px">コピー</button></div>
+        <div class="hint" id="obsState">OBS：まだつながっていません</div>
+        <label class="check" style="margin-top:8px"><input type="checkbox" id="screenHud" checked><span>自分の画面にも出す<small>オフにすると、自分の画面には出さず配信にだけ出します</small></span></label>
+        <details style="margin-top:8px"><summary class="hint">設定のしかた</summary>
+          <ol class="hint" style="padding-left:18px;margin:6px 0">
+            <li>OBS の「ソース」の＋ →「ブラウザ」→ 名前をつけて OK</li>
+            <li>URL に上の URL を貼る。幅・高さはゲームの解像度（例 1920 と 1080）</li>
+            <li>「ソースが表示されていないときにシャットダウン」はオフ</li>
+            <li>ソースの並びで「ゲームキャプチャ」より上に置き、右クリック →「変換」→「画面に合わせる」（ゲームキャプチャと同じ大きさ・位置にする）</li>
+          </ol>
+          <span class="hint">OBS の画面キャプチャを使っている場合は、何もしなくても HUD が映ります（そのときはブラウザソースは不要です）。</span>
+        </details>
+      </div>
+      <div class="box" style="margin-top:8px">
+        <b>TikTok LIVE Studio など（OBS を使わないとき）</b><br>
+        <span class="hint">「ゲーム画面＋HUD」が映った窓を出します。配信アプリの「ウィンドウキャプチャ」でこの窓を選ぶだけで、HUD つきのゲーム画面になります。</span>
+        <div class="row" style="margin-top:8px"><button id="streamWin">配信用の窓を開く</button></div>
+        <div class="row" style="margin-top:6px"><button id="charaWin">キャラの窓を開く（エレナ・試作）</button></div>
+        <span class="hint">キャラの窓：ゲームに合わせて表情が変わるデフォルメのキャラだけを出します。縦配信の飾りの枠の中に、ウィンドウキャプチャで「【キャラの窓】」を選んで置きます。</span>
+        <details style="margin-top:8px"><summary class="hint">使い方</summary>
+          <ol class="hint" style="padding-left:18px;margin:6px 0">
+            <li>上の「配信用の窓を開く」を押す（ゲームを起動していると、窓にゲーム画面と HUD が映ります）</li>
+            <li>配信アプリで「ソースを追加」→「ウィンドウキャプチャ」→「【配信用の窓】」と書かれたものを選ぶ</li>
+            <li>ゲームの音は、配信アプリでゲームのソースを足して拾う（映像のほうは非表示でOK）</li>
+            <li>窓は最小化しないでください（止まります）。ゲームの後ろに置いておけば大丈夫です。窓はドラッグで動かせます。閉じるときは同じボタン（配信用の窓を閉じる）</li>
+          </ol>
+        </details>
+      </div>
+    </div>
+    <div id="cmBox" hidden>
+      <h3>コメントを画面に出す（わんコメ）<small style="font-weight:400"> 試作</small></h3>
+      <div class="box">
+        <span class="hint">わんコメで受け取った YouTube・TikTok・Twitch のコメントを、ゲーム画面の右側に出します（自分の画面・配信用の窓の両方）。先にわんコメを起動して、配信の URL を登録しておいてください。</span>
+        <label class="check" style="margin-top:8px"><input type="checkbox" id="cmOn"><span>コメントを出す</span></label>
+        <label class="check" style="margin-top:4px"><input type="checkbox" id="cmScreen" checked><span>自分の画面にも出す<small>オフにすると、コメントは配信（配信用の窓・OBS）にだけ出ます。HUD の設定とは別に選べます</small></span></label>
+        <div class="hint" id="cmState">わんコメ：—</div>
+        <div class="row" style="margin-top:8px"><button id="cmTest">テストコメントを送る</button></div>
+        <details style="margin-top:8px"><summary>コメント欄の見た目（場所・大きさ・濃さ・件数）</summary>
+          <span class="hint">自分の画面・配信用の窓・OBS の URL の3か所とも同じ見た目になります。変えるとすぐ反映されます。</span>
+          <div class="row"><label class="l" for="cmPos">場所</label><select id="cmPos" style="flex:1;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font:inherit"><option value="tr">右上（キル表示の下）</option><option value="lm">左（ミニマップの下）</option></select></div>
+          <div class="row"><label class="l" for="cmDx">横にずらす</label><input type="range" id="cmDx" min="-800" max="800" step="10" value="0"><output for="cmDx">0</output></div>
+          <div class="row"><label class="l" for="cmDy">縦にずらす</label><input type="range" id="cmDy" min="-300" max="600" step="10" value="0"><output for="cmDy">0</output></div>
+          <div class="row"><label class="l" for="cmSize">大きさ</label><input type="range" id="cmSize" min="50" max="180" step="5" value="100"><output for="cmSize">100</output></div>
+          <div class="row"><label class="l" for="cmOpacity">背景の濃さ</label><input type="range" id="cmOpacity" min="0" max="85" value="24"><output for="cmOpacity">24</output></div>
+          <div class="row"><label class="l" for="cmLife">消えるまで</label><input type="range" id="cmLife" min="5" max="90" step="5" value="25"><output for="cmLife">25</output></div>
+          <div class="row"><label class="l" for="cmMax">件数</label><input type="range" id="cmMax" min="1" max="6" value="3"><output for="cmMax">3</output></div>
+          <div class="row"><button id="cmLookReset">元に戻す</button><button id="cmLookTest">テストコメントで確かめる</button></div>
+        </details>
+        <details style="margin-top:6px"><summary>コメントの読み上げ（Windows の声）</summary>
+          <span class="hint">届いたコメントを、パソコンに入っている声で読みます。音はパソコンのスピーカーから出るので、配信ソフトがデスクトップの音を拾っていれば配信にも流れます。</span>
+          <label class="check" style="margin-top:6px"><input type="checkbox" id="spOn"><span>コメントを読み上げる</span></label>
+          <div class="row"><label class="l" for="spVoice">声</label><select id="spVoice" style="flex:1;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font:inherit"><option value="">（日本語の声を自動で選ぶ）</option></select></div>
+          <div class="row"><label class="l" for="spVol">音量</label><input type="range" id="spVol" min="0" max="100" value="80"><output for="spVol">80</output></div>
+          <div class="row"><label class="l" for="spRate">速さ</label><input type="range" id="spRate" min="50" max="200" step="5" value="110"><output for="spRate">110</output></div>
+          <div class="row"><label class="l" for="spLen">長さの上限</label><input type="range" id="spLen" min="10" max="120" step="5" value="40"><output for="spLen">40</output></div>
+          <label class="check" style="margin-top:4px"><input type="checkbox" id="spName"><span>名前も読む（「〇〇さん、…」）</span></label>
+          <div class="row" style="margin-top:6px"><label class="l" for="spNg">読まない言葉</label><input type="text" id="spNg" placeholder="読点（、）かカンマで区切る"></div>
+          <span class="hint">URL は「URL省略」、長いコメントは上限で切って「以下略」と読みます。たくさん来たときは古いものを読み飛ばします。ギフト・スパチャは「〇〇さん、ありがとう」と読みます。</span>
+          <div class="row" style="margin-top:6px"><button id="spTest">読み上げのテスト</button></div>
+        </details>
+        <div class="hint" style="margin-top:8px"><b>OBS で出すとき：</b>下の URL をコピーして、HUD とは別のブラウザソースに貼ります（幅・高さはゲームと同じ）。OBS の中で大きさ・位置を自由に変えられます。</div>
+        <div class="row" style="margin-top:4px"><input type="text" id="cmUrl" readonly><button id="cmCopy" style="width:80px">コピー</button></div>
+      </div>
+    </div>
+    <div id="npBox" hidden>
+      <h3>再生中の曲を画面に出す<small style="font-weight:400"> 試作</small></h3>
+      <div class="box">
+        <span class="hint">ブラウザ（YouTube・YouTube Music など）で流している曲の名前・チャンネル・サムネイル（ジャケット）を、ゲーム画面の右側に出します（自分の画面・配信用の窓・OBS）。このアプリは音楽を再生しません。Windows の音量ボタンで出る「再生中」の表示と同じ情報を読みます。</span>
+        <label class="check" style="margin-top:8px"><input type="checkbox" id="npOn"><span>再生中の曲を出す</span></label>
+        <label class="check" style="margin-top:4px"><input type="checkbox" id="npScreen" checked><span>自分の画面にも出す<small>オフにすると、配信（配信用の窓・OBS）にだけ出ます</small></span></label>
+        <div class="hint" id="npState">—</div>
+        <div class="row" style="margin-top:8px"><button id="npTest">見本を8秒出す</button></div>
+        <details style="margin-top:8px"><summary>見た目（場所・大きさ・濃さ）</summary>
+          <div class="row"><label class="l" for="npPos">場所</label><select id="npPos" style="flex:1;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font:inherit"><option value="rm">右（MENU の表示の下）</option><option value="lm">左（ミニマップの下）</option></select></div>
+          <div class="row"><label class="l" for="npDx">横にずらす</label><input type="range" id="npDx" min="-800" max="800" step="10" value="0"><output for="npDx">0</output></div>
+          <div class="row"><label class="l" for="npDy">縦にずらす</label><input type="range" id="npDy" min="-600" max="300" step="10" value="0"><output for="npDy">0</output></div>
+          <div class="row"><label class="l" for="npSize">大きさ</label><input type="range" id="npSize" min="50" max="180" step="5" value="100"><output for="npSize">100</output></div>
+          <div class="row"><label class="l" for="npOpacity">背景の濃さ</label><input type="range" id="npOpacity" min="0" max="95" value="70"><output for="npOpacity">70</output></div>
+          <div class="row" style="margin-top:6px"><button id="npLookReset">元に戻す</button></div>
+        </details>
+        <span class="hint" style="margin-top:8px;display:block">OBS で曲名だけ別のソースにしたいときは、この URL をブラウザソースに（幅 2560・高さ 1080）</span>
+        <div class="row" style="margin-top:4px"><input type="text" id="npUrl" readonly><button id="npCopy" style="width:80px">コピー</button></div>
+      </div>
+    </div>
+    <div id="obsTrial" class="hint" hidden>配信（OBS）に HUD を出す機能は、製品版（通常版・カスタム版）で使えます。</div>
+    <h3>見た目の確認（ゲームを起動していなくても動きます）</h3>
+    <div class="grid2">
+      <button id="demo">デモ再生</button>
+      <button class="toggle" id="demoBg">確認用ゲーム画面</button>
+    </div>
+    <h3>困ったとき</h3>
+    <div class="box" id="helpBox">
+      <b>うまく動かないときは、まず「かんたん診断」。</b><br>
+      <span class="hint">よくある原因をアプリが確かめて、直し方を出します。試合中に押すといちばん正確です。</span>
+      <div class="grid2" style="margin-top:8px"><button id="check">かんたん診断</button><button id="copyInfo">問い合わせ用の情報をコピー</button></div>
+      <div id="checkOut" hidden></div>
+      <p class="hint" style="margin:8px 0 0">それでも直らないときは、BOOTH のショップ（ルピフレ）へメッセージでどうぞ。「問い合わせ用の情報をコピー」を押して、メッセージに貼り付けるだけで大丈夫です。</p>
+    </div>
+    <div class="grid" style="margin-top:8px">
+      <button class="toggle" id="diag">診断ログ</button>
+      <button id="logs">ログフォルダ</button>
+      <button class="toggle" id="perf">性能表示</button>
+    </div>
+    <div id="perfbox" hidden></div>
+    <p class="hint">こちらから頼んだときだけ「診断ログ」を ON にして1試合遊んでください（くわしい調べもの用）。 <a class="q" data-help="trouble" style="float:none">？ 困ったときの一覧</a></p>
+  </section>
+
+  <!-- ===== テスト ===== -->
+  <section id="tab-test">
+    <p class="hint">ゲームを起動していなくても、見た目を確認できます。手動で動かすときは「設定」の読み取りを OFF にしてください。</p>
+    <div class="grid">
+      <button data-ev="champion">優勝演出</button>
+    </div>
+    <h3>体力</h3>
+    <div class="row"><label class="l" for="hp">HP</label><input type="range" id="hp" min="0" max="100" value="78"><output for="hp">78</output></div>
+    <div class="row"><label class="l" for="shield">シールド</label><input type="range" id="shield" min="0" max="125" value="100"><output for="shield">100</output></div>
+    <div class="grid">
+      <button data-ev="damage" data-arg="25">被弾 25</button>
+      <button data-ev="damage" data-arg="60">被弾 60</button>
+      <button class="toggle" id="heal">回復中</button>
+      <button data-patch='{"hp":100}'>HP全回復</button>
+      <button data-ev="reset">リセット</button>
+    </div>
+    <h3>出来事</h3>
+    <div class="grid">
+      <button data-ev="kill">キル</button>
+      <button data-ev="knock">ダウン</button>
+      <button data-ev="revive">蘇生</button>
+      <button data-ev="use_tactical">戦術スキル</button>
+      <button data-patch='{"ult":{"charge":100}}'>ウルト準備</button>
+      <button data-ev="use_ult">ウルト使用</button>
+      <button id="chatTest">翻訳テスト</button>
+    </div>
+    <div id="now"></div>
+  </section>
+</main>
+<div id="toast"></div>
+<script src="control.js"></script>
+</body>
+</html>

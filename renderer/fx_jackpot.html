@@ -1,0 +1,495 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<!-- 2026-11-03：チャンピオンの「大当たり」演出（パチンコ風）。設定「チャンピオン演出」で選べる -->
+<style>
+@font-face { font-family: Anton; src: url(../assets/fx_jackpot/Anton-Regular.ttf); }
+@font-face { font-family: JP; src: url(../assets/fx_jackpot/jp-black-subset.woff2); font-weight: 900; }
+@font-face { font-family: Orb; src: url(../assets/fx_jackpot/Orbitron.ttf); font-weight: 400 900; }
+html, body { margin: 0; background: transparent; overflow: hidden; } canvas { display: block; }
+</style></head><body>
+<canvas id="c"></canvas>
+<script>
+
+// チャンピオン演出 v5（参考：ドパガキ系の演出。白と立体のクリスタル文字）
+const cv = document.getElementById('c'); let g = cv.getContext('2d');
+// 論理座標：横 1920。縦は画面の縦横比に合わせる（21:9 なら 810、16:9 なら 1080）
+// 論理サイズ：横 1920 を基本に、32:9 などの超横長では高さ 810 を下回らないよう横を広げる（文字・キャラが上下で切れないように）
+const IW = window.innerWidth || 1920, IH = window.innerHeight || 810;
+const W = Math.max(1920, Math.round(810 * IW / IH)), H = Math.round(W * IH / IW), CX = W / 2, CY = H / 2;
+const A = '../assets/';
+const ys = new Image(); let ysReady = null; let ysF = null;   // キャラの全身絵（main.js から渡す）。明るさを整えた版を ysF に作っておく
+let ysT = null, ysG = null;
+function setArt(src) { ysReady = new Promise((ok) => { ys.onload = () => { ysF = document.createElement('canvas'); ysF.width = ys.naturalWidth; ysF.height = ys.naturalHeight; const c = ysF.getContext('2d'); c.filter = 'contrast(1.12) saturate(1.2) brightness(0.96)'; c.drawImage(ys, 0, 0); ysT = document.createElement('canvas'); ysT.width = ysF.width; ysT.height = ysF.height; { const c2 = ysT.getContext('2d'); c2.filter = 'hue-rotate(160deg) saturate(3)'; c2.drawImage(ysF, 0, 0); } const P = 60; ysG = document.createElement('canvas'); ysG.width = ysF.width + P * 2; ysG.height = ysF.height + P * 2; { const c3 = ysG.getContext('2d'); c3.shadowColor = 'rgba(120,190,255,.9)'; c3.shadowBlur = 40; c3.drawImage(ysF, P, P); } ok(); }; ys.onerror = () => ok(); ys.src = src; }); return ysReady; }
+const T_OFF = 1.0, T_FLARE = 1.55, T_LINE = 2.25, T_CUT = 5.75, T_WHITE = 6.7, END = 11.95;
+// 声（ヨシュア）に合わせた文字の出る時刻
+const TS = [2.45, 2.66, 2.96, 3.11, 3.23, 3.46, 3.66, 4.39, 4.54, 4.67, 4.8, 4.94, 5.07, 5.2, 5.33, 5.46];
+const LINE = '私たちが勝つに決まってるでしょ！';
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x)), lerp = (a, b, x) => a + (b - a) * x;
+const eo = (x) => 1 - Math.pow(1 - clamp(x), 3), eio = (x) => { x = clamp(x); return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
+const eob = (x, s = 1.8) => { x = clamp(x); return 1 + (s + 1) * Math.pow(x - 1, 3) + s * Math.pow(x - 1, 2); };
+function R(seed) { let s = (seed * 9301 + 49297) % 2147483647 || 1; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
+const hsl = (h, s = 100, l = 60, a = 1) => `hsla(${h % 360},${s}%,${l}%,${a})`;
+
+function glowLine(x0, y0, x1, y1, w, col, blur, a = 1) { g.save(); g.globalAlpha = a; g.strokeStyle = col; g.lineWidth = w; g.shadowColor = col; g.shadowBlur = blur; g.lineCap = 'round'; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); g.restore(); }
+function radial(x, y, r, stops) { const rg = g.createRadialGradient(x, y, 0, x, y, r); stops.forEach(([o, c]) => rg.addColorStop(o, c)); g.fillStyle = rg; g.fillRect(x - r, y - r, r * 2, r * 2); }
+
+// 虹のレンズフレア（十字の光）
+function flare(x, y, s, a) {
+  g.save(); g.globalCompositeOperation = 'lighter'; g.globalAlpha = a;
+  radial(x, y, 420 * s, [[0, 'rgba(255,255,255,1)'], [0.08, 'rgba(255,255,255,.9)'], [0.3, 'rgba(180,200,255,.35)'], [1, 'rgba(0,0,0,0)']]);
+  for (let i = 0; i < 7; i++) { const h = i * 50; g.fillStyle = hsl(h, 100, 60, 0.55); g.fillRect(x - 1100 * s, y - 3 + (i - 3) * 2.2 * s, 2200 * s, 3); }
+  const lg = g.createLinearGradient(0, y - 600 * s, 0, y + 600 * s); lg.addColorStop(0, 'rgba(255,255,255,0)'); lg.addColorStop(0.5, 'rgba(255,255,255,.95)'); lg.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = lg; g.fillRect(x - 2.5, y - 600 * s, 5, 1200 * s);
+  const hg = g.createLinearGradient(x - 1100 * s, 0, x + 1100 * s, 0); hg.addColorStop(0, 'rgba(255,255,255,0)'); hg.addColorStop(0.5, 'rgba(255,255,255,1)'); hg.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = hg; g.fillRect(x - 1100 * s, y - 4, 2200 * s, 8);
+  // 虹の輪（ゴースト）
+  for (let k = 0; k < 3; k++) { g.strokeStyle = hsl(k * 120 + 30, 100, 65, 0.35); g.lineWidth = 10; g.beginPath(); g.arc(x + (k - 1) * 260 * s, y, (60 + k * 40) * s, 0, 6.283); g.stroke(); }
+  g.restore();
+}
+
+// ガラスの破片（回転して立体に見える三角）
+function shard(x, y, s, rot, flip, a, tint = 'blue') {
+  g.save(); g.translate(x, y); g.rotate(rot); g.scale(Math.max(0.08, Math.abs(Math.cos(flip))), 1); g.globalAlpha = a;
+  const gr = g.createLinearGradient(-s, -s, s, s);
+  const shine = 0.5 + 0.5 * Math.sin(flip * 2);
+  gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.35, tint === 'blue' ? `rgba(170,220,255,${0.85})` : 'rgba(255,240,200,.9)'); gr.addColorStop(0.36 + shine * 0.2, '#ffffff'); gr.addColorStop(1, tint === 'blue' ? 'rgba(60,140,255,.7)' : 'rgba(255,170,60,.7)');
+  g.fillStyle = gr; g.beginPath(); g.moveTo(0, -s); g.lineTo(s * 0.7, s * 0.6); g.lineTo(-s * 0.55, s * 0.35); g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(255,255,255,.95)'; g.lineWidth = 1.5; g.stroke();
+  g.restore();
+}
+
+// 立体のクリスタル文字：奥行き（押し出し）＋面にカット（多角形の明暗）＋白いベベル＋暗いふち
+// 立体の宝石文字（v9）：側面に陰影のある押し出し＋カット面の明暗がはっきりした表面＋ベベルとつや
+function crystalTextRaw(txt, x, y, size, font, t, o = {}) {
+  g.save(); g.translate(x, y); if (o.rot) g.rotate(o.rot); if (o.sx) g.scale(o.sx, 1);
+  g.font = font.replace('#', size); g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+  const depth = o.depth || Math.round(size * 0.16), dx = o.ddx ?? 0.55, dy = o.ddy ?? 0.85, pal = o.pal || 'ice';
+  const tw = g.measureText(txt).width;
+  // 色
+  const C = pal === 'gold'
+    ? { back: [70, 28, 0], side0: [255, 215, 110], side1: [200, 110, 10], edge: '#2a0e00', glow: 'rgba(255,170,40,.9)', hi: [255, 246, 200], mid: [255, 185, 35], lo: [185, 95, 0] }
+    : { back: [8, 22, 70], side0: [150, 205, 255], side1: [30, 70, 170], edge: '#04102e', glow: 'rgba(120,200,255,.9)', hi: [255, 255, 255], mid: [170, 215, 255], lo: [40, 110, 220] };
+  const rgb = (c, a = 1) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`, mix = (p, q, f) => p.map((v, i) => v + (q[i] - v) * f);
+  // 外側の光と、押し出し全体の暗いふち（形がはっきり見えるように）
+  g.save(); g.shadowColor = C.glow; g.shadowBlur = o.glow ?? 30; g.lineWidth = size * 0.1; g.strokeStyle = C.edge; g.strokeText(txt, depth * dx, depth * dy); g.restore();
+  g.lineWidth = size * 0.1; g.strokeStyle = C.edge;
+  for (let k = depth; k >= 1; k -= 2) g.strokeText(txt, k * dx, k * dy);
+  // 側面：奥ほど暗く、上下の向きで明るさが変わる（上を向いた面は明るく、下を向いた面は暗く）
+  for (let k = depth; k >= 1; k--) {
+    const f = k / depth, c0 = mix(C.side0, C.back, f * 0.9), c1 = mix(C.side1, C.back, f * 0.9);
+    const sg = g.createLinearGradient(0, -size * 0.5 + k * dy, 0, size * 0.5 + k * dy); sg.addColorStop(0, rgb(c0)); sg.addColorStop(0.5, rgb(mix(c0, c1, 0.5))); sg.addColorStop(1, rgb(c1));
+    g.fillStyle = sg; g.fillText(txt, k * dx, k * dy);
+  }
+  // 側面と表面の境目のハイライト
+  g.lineWidth = Math.max(2, size * 0.018); g.strokeStyle = rgb(C.hi, 0.9); g.strokeText(txt, dx * 1.2, dy * 1.2);
+  // 表面の外周：太い暗いふち＋白い細いふち
+  g.lineWidth = size * 0.075; g.strokeStyle = C.edge; g.strokeText(txt, 0, 0);
+  g.lineWidth = size * 0.03; g.strokeStyle = rgb(C.hi); g.strokeText(txt, 0, 0);
+  // 表面：宝石のカット面（三角形ごとに光の当たり方を変える）を別キャンバスに描いて文字の形で切り抜く
+  const oc = crystalText.oc || (crystalText.oc = document.createElement('canvas'));
+  const ow = Math.ceil(tw + size * 0.6), oh = Math.ceil(size * 1.5); oc.width = ow; oc.height = oh; const og = oc.getContext('2d');
+  og.font = g.font; og.textAlign = 'center'; og.textBaseline = 'middle'; og.lineJoin = 'round'; og.fillStyle = '#fff'; og.fillText(txt, ow / 2, oh / 2);
+  og.globalCompositeOperation = 'source-atop';
+  const r = R(o.seed || 5), cell = size * 0.3, cols = Math.ceil(ow / cell) + 2, rows = Math.ceil(oh / cell) + 2, P = [];
+  for (let j = 0; j < rows; j++) { P[j] = []; for (let i = 0; i < cols; i++) P[j][i] = [(i - 0.5) * cell + (r() - 0.5) * cell * 0.7, (j - 0.5) * cell + (r() - 0.5) * cell * 0.7]; }
+  const L = [-0.5, -0.8];   // 光の向き（左上）
+  const tri = (p1, p2, p3) => {
+    const nx = r() - 0.5, ny = r() - 0.5, lit = 0.5 + (nx * L[0] + ny * L[1]) * 1.6 + (r() - 0.5) * 0.3;   // 面ごとの明るさ
+    const c = lit > 0.98 ? C.hi : lit > 0.6 ? mix(C.mid, C.hi, (lit - 0.6) / 0.38 * 0.8) : mix(C.lo, C.mid, Math.max(0, lit) / 0.6);
+    const gx = og.createLinearGradient(p1[0], p1[1], p3[0], p3[1]); gx.addColorStop(0, rgb(mix(c, C.hi, 0.2))); gx.addColorStop(1, rgb(mix(c, C.lo, 0.35)));
+    og.fillStyle = gx; og.beginPath(); og.moveTo(...p1); og.lineTo(...p2); og.lineTo(...p3); og.closePath(); og.fill();
+    og.strokeStyle = 'rgba(255,255,255,.3)'; og.lineWidth = 1; og.stroke();
+  };
+  for (let j = 0; j < rows - 1; j++) for (let i = 0; i < cols - 1; i++) { tri(P[j][i], P[j][i + 1], P[j + 1][i]); tri(P[j][i + 1], P[j + 1][i + 1], P[j + 1][i]); }
+  // 虹の反射（うすく）
+  if (o.holo !== false) { const hg = og.createLinearGradient(0, 0, ow, oh); for (let i = 0; i <= 6; i++) hg.addColorStop(i / 6, hsl(i * 60 + t * 120, 100, 70, 0.18)); og.fillStyle = hg; og.fillRect(0, 0, ow, oh); }
+  // 内側のベベル：ふちに沿って細く（左上を明るく、右下を暗く）
+  og.lineWidth = Math.max(2, size * 0.025); og.strokeStyle = 'rgba(255,255,255,.7)'; og.strokeText(txt, ow / 2 - size * 0.006, oh / 2 - size * 0.008);
+  og.strokeStyle = pal === 'gold' ? 'rgba(110,50,0,.5)' : 'rgba(10,40,120,.5)'; og.strokeText(txt, ow / 2 + size * 0.008, oh / 2 + size * 0.01);
+  // 斜めのつや（光が横切る）＋上半分の白いつや
+  const sx = ((t * 0.9 + (o.ph || 0)) % 1.4) / 1.4 * (ow + 400) - 200; const sg2 = og.createLinearGradient(sx - size * 0.35, 0, sx + size * 0.35, oh * 0.5); sg2.addColorStop(0, 'rgba(255,255,255,0)'); sg2.addColorStop(0.5, 'rgba(255,255,255,.7)'); sg2.addColorStop(1, 'rgba(255,255,255,0)'); og.fillStyle = sg2; og.fillRect(0, 0, ow, oh);
+  const tg = og.createLinearGradient(0, 0, 0, oh); tg.addColorStop(0, 'rgba(255,255,255,.18)'); tg.addColorStop(0.45, 'rgba(255,255,255,.03)'); tg.addColorStop(0.5, 'rgba(0,0,0,0)'); og.fillStyle = tg; og.fillRect(0, 0, ow, oh);
+  g.drawImage(oc, -ow / 2, -oh / 2);
+  // きらっと光る点（宝石の反射）
+  { const r2 = R((o.seed || 5) * 31 + Math.floor(t * 3)); g.save(); g.globalCompositeOperation = 'lighter'; for (let k = 0; k < 2; k++) { const px = (r2() - 0.5) * tw * 0.8, py = (r2() - 0.5) * size * 0.6, s = size * 0.12, a = Math.sin(((t * 3 + k * 0.5) % 1) * Math.PI); g.globalAlpha = a; g.fillStyle = '#fff'; g.beginPath(); g.moveTo(px - s, py); g.lineTo(px, py - s * 0.08); g.lineTo(px + s, py); g.lineTo(px, py + s * 0.08); g.closePath(); g.fill(); g.beginPath(); g.moveTo(px, py - s); g.lineTo(px + s * 0.08, py); g.lineTo(px, py + s); g.lineTo(px - s * 0.08, py); g.closePath(); g.fill(); } g.restore(); }
+  g.restore();
+}
+
+
+// ===== 立体のレーザー（奥行きのある空間：床のグリッド・もや・奥のステージから手前へ伸びるビーム） =====
+function proj(x, y, z, cz) { const f = 900 / Math.max(40, z - cz); return [CX + x * f, CY + y * f, f]; }
+function lasers3d(t, a) {
+  const cz = (t - T_CUT) * 600;   // カメラが前へ進む
+  // 床のグリッド（遠くへ消えていく）
+  g.save(); g.globalCompositeOperation = 'lighter';
+  const FY = 420;
+  for (let i = -14; i <= 14; i++) { const [x0, y0] = proj(i * 260, FY, cz + 60, cz), [x1, y1] = proj(i * 260, FY, cz + 6000, cz); g.strokeStyle = `rgba(120,90,255,${0.35 * a})`; g.lineWidth = 2; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); }
+  for (let k = 0; k < 30; k++) { const z = Math.ceil(cz / 200) * 200 + k * 200; const [x0, y0, f] = proj(-3800, FY, z, cz), [x1] = proj(3800, FY, z, cz); g.strokeStyle = `rgba(150,110,255,${Math.min(0.5, f * 0.25) * a})`; g.lineWidth = Math.max(1, f * 1.5); g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y0); g.stroke(); }
+  // 地平線の光
+  { const [, hy] = proj(0, FY, cz + 6000, cz); const hg = g.createLinearGradient(0, hy - 120, 0, hy + 60); hg.addColorStop(0, 'rgba(255,60,200,0)'); hg.addColorStop(0.7, `rgba(255,80,220,${0.35 * a})`); hg.addColorStop(1, 'rgba(255,60,200,0)'); g.fillStyle = hg; g.fillRect(0, hy - 120, W, 180); }
+  // ビーム：奥（z=5000）の光源から、手前へ向かって扇形に。太さは近いほど太く
+  const cols = ['#38e1ff', '#ff3bd4', '#7dff6a', '#fff27a', '#9b6bff', '#38e1ff', '#ff3bd4', '#fff27a'];
+  for (let si = 0; si < 8; si++) {
+    const sx = (si - 3.5) * 520, sy = si % 2 ? -380 : -260, sz = cz + 5000, col = cols[si];
+    for (let k = 0; k < 6; k++) {
+      const ax = Math.sin(t * (1.7 + si * 0.23) + si * 1.3 + k * 0.5) * 0.9 + (k - 2.5) * 0.22, ay = 0.15 + Math.cos(t * 1.3 + si + k) * 0.25;
+      // 光源から手前に向かう線を、何段かに分けて描く（遠い所は細く、近い所は太く）
+      const N = 10; let prev = null;
+      for (let j = 0; j <= N; j++) {
+        const q = j / N * 0.86, z = sz - q * 5200, x = sx + ax * (sz - z) * 0.9, y = sy + ay * (sz - z) * 0.5;
+        const [px, py, f] = proj(x, y, z, cz);
+        if (prev) {
+          const w = Math.min(10, Math.max(1, f * 9));
+          g.globalAlpha = a * 0.10; g.strokeStyle = col; g.lineWidth = w * 6; g.beginPath(); g.moveTo(prev[0], prev[1]); g.lineTo(px, py); g.stroke();   // もや
+          g.globalAlpha = a; g.lineWidth = w; g.shadowColor = col; g.shadowBlur = 18; g.beginPath(); g.moveTo(prev[0], prev[1]); g.lineTo(px, py); g.stroke();
+          g.shadowBlur = 0; g.strokeStyle = '#fff'; g.lineWidth = Math.max(0.8, w * 0.35); g.beginPath(); g.moveTo(prev[0], prev[1]); g.lineTo(px, py); g.stroke(); g.strokeStyle = col;
+        }
+        prev = [px, py];
+      }
+    }
+    const [lx, ly, lf] = proj(sx, sy, sz, cz); g.globalAlpha = a; radial(lx, ly, 60 + lf * 400, [[0, 'rgba(255,255,255,1)'], [0.25, col], [1, 'rgba(0,0,0,0)']]);
+  }
+  // 手前を横切る光の粒（奥行き感）
+  { const r = R(17); for (let i = 0; i < 80; i++) { const x = (r() - 0.5) * 4000, y = (r() - 0.5) * 1600, z = cz + ((r() * 3000 - (t * 900) % 3000) + 3000) % 3000 + 50; const [px, py, f] = proj(x, y, z, cz); g.globalAlpha = Math.min(1, f) * a; g.fillStyle = '#ffffff'; g.beginPath(); g.arc(px, py, Math.max(0.8, f * 3), 0, 6.283); g.fill(); } }
+  g.restore(); g.globalAlpha = 1;
+}
+// ===== パチンコの当たり演出っぽい飾り（最後） =====
+function ledFrame(t, a, rb) {   // 画面のふちの電球が走る
+  const step = 36, rr = 8, pts = [];
+  for (let x = step / 2; x < W; x += step) pts.push([x, 14]);
+  for (let y = 14 + step; y < H - 14; y += step) pts.push([W - 14, y]);
+  for (let x = W - step / 2; x > 0; x -= step) pts.push([x, H - 14]);
+  for (let y = H - 14 - step; y > 14; y -= step) pts.push([14, y]);
+  g.save(); g.globalCompositeOperation = 'lighter';
+  pts.forEach(([x, y], i) => { const on = ((i + Math.floor(t * 28)) % 5) < 2; const col = rb > 0 ? hsl(i * 9 + t * 400, 100, on ? 62 : 40) : (on ? '#ffe680' : '#806020'); g.globalAlpha = a * (on ? 1 : 0.45); g.fillStyle = col; if (on) { const ga = g.globalAlpha; g.globalAlpha = ga * 0.3; g.beginPath(); g.arc(x, y, rr * 2.2, 0, 6.283); g.fill(); g.globalAlpha = ga; } g.beginPath(); g.arc(x, y, rr, 0, 6.283); g.fill(); if (on) { g.fillStyle = '#fff'; g.beginPath(); g.arc(x, y, rr * 0.45, 0, 6.283); g.fill(); } });
+  g.restore();
+}
+function goldRing(cx, cy, t, a, scl) {   // 傾いた金の輪（文字が刻まれて回る）
+  g.save(); g.translate(cx, cy); g.globalAlpha = a;
+  const RX = 780 * scl, RY = 190 * scl, txt = ' CHAMPION ★ SQUAD VICTORY ★ CHAMPION ★ SQUAD VICTORY ★', n = txt.length;
+  // 後ろ半分 → 文字の後ろ、手前半分は呼び出し側で別に描く（front=false のときは後ろだけ）
+  const draw = (front) => {
+    // 金の帯（輪そのもの）
+    g.save(); g.beginPath(); g.rect(-W, front ? 0 : -H, W * 2, H); g.clip();
+    for (const [w, c] of [[44, '#5a3000'], [36, '#e8a828'], [14, '#fff0b0']]) { g.strokeStyle = c; g.lineWidth = w; g.beginPath(); g.ellipse(0, 0, RX, RY, 0, 0, 6.283); g.stroke(); }
+    g.restore();
+    for (let i = 0; i < n; i++) {
+      const an = -i / n * 6.283 + t * 0.9, sinA = Math.sin(an); if ((sinA > 0) !== front) continue;
+      const x = Math.cos(an) * RX, y = sinA * RY, sc = 0.75 + 0.35 * (sinA + 1) / 2;
+      // 輪の板（金）
+      g.save(); g.translate(x, y); g.scale(sc, sc);
+      const pg = g.createLinearGradient(0, -34, 0, 34); pg.addColorStop(0, '#fff4c0'); pg.addColorStop(0.4, '#f0b030'); pg.addColorStop(0.6, '#8a5200'); pg.addColorStop(1, '#ffd870');
+      g.fillStyle = pg; g.beginPath(); g.roundRect(-24, -30, 48, 60, 8); g.fill(); g.strokeStyle = '#4a2600'; g.lineWidth = 3; g.stroke();
+      g.fillStyle = 'rgba(255,255,255,.45)'; g.beginPath(); g.roundRect(-20, -27, 40, 12, 5); g.fill();
+      g.font = '900 40px Anton'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#5a2c00'; g.fillText(txt[i], 1, 2); g.fillStyle = '#fff3c0'; g.fillText(txt[i], 0, 0);
+      g.restore();
+    }
+  };
+  goldRing.draw = draw; draw(false); g.restore();
+}
+function goldRingFront(cx, cy, t, a, scl) { g.save(); g.translate(cx, cy); g.globalAlpha = a; goldRing.draw(true); g.restore(); }
+
+// 宝石文字は重いので、1文字ずつ一度だけ絵にしておき、あとは貼るだけにする（毎フレーム描くと 60fps に間に合わない）
+const CT = new Map();
+function crystalText(txt, x, y, size, font, t, o = {}) {
+  const key = [txt, size, font, o.pal, o.depth, o.ddx, o.ddy, o.seed, o.holo, o.glow].join('|');
+  let c = CT.get(key);
+  if (!c) {
+    c = document.createElement('canvas'); const pad = Math.ceil(size * 0.9 + (o.depth || size * 0.2) * 1.2 + (o.glow ?? 30)); c.width = Math.ceil(size * 1.4 * Math.max(1, txt.length)) + pad * 2; c.height = Math.ceil(size * 1.6) + pad * 2;
+    const keep = g; g = c.getContext('2d'); crystalTextRaw(txt, c.width / 2, c.height / 2, size, font, 0.35, { ...o, sx: undefined, rot: undefined }); g = keep;
+    CT.set(key, c);
+  }
+  g.save(); g.translate(x, y); if (o.rot) g.rotate(o.rot); if (o.sx) g.scale(o.sx, 1); g.drawImage(c, -c.width / 2, -c.height / 2); g.restore();
+}
+// ステージのレーザー
+function lasers(t, a) {
+  g.save(); g.globalCompositeOperation = 'lighter';
+  const srcs = [[CX - 620, -20], [CX - 220, -30], [CX + 220, -30], [CX + 620, -20], [-20, H + 20], [W + 20, H + 20]];
+  const cols = ['#38e1ff', '#ff3bd4', '#7dff6a', '#fff27a', '#38e1ff', '#ff3bd4'];
+  srcs.forEach(([sx, sy], si) => {
+    const col = cols[si], n = 7;
+    for (let k = 0; k < n; k++) {
+      const base = sy < 0 ? Math.PI / 2 : (sx < CX ? -Math.PI / 4 : -3 * Math.PI / 4);
+      const an = base + (k - (n - 1) / 2) * 0.13 + Math.sin(t * (2.2 + si * 0.3) + si) * 0.55;
+      const L = 2400, ex = sx + Math.cos(an) * L, ey = sy + Math.sin(an) * L;
+      // 光の幕（もや）
+      g.globalAlpha = a * 0.08; g.strokeStyle = col; g.lineWidth = 50; g.beginPath(); g.moveTo(sx, sy); g.lineTo(ex, ey); g.stroke();
+      glowLine(sx, sy, ex, ey, 4, col, 22, a * 0.95); glowLine(sx, sy, ex, ey, 1.4, '#ffffff', 0, a);
+    }
+    g.globalAlpha = a; radial(sx, sy, 140, [[0, 'rgba(255,255,255,1)'], [0.2, col], [1, 'rgba(0,0,0,0)']]);
+  });
+  g.restore();
+}
+
+function draw(t) {
+  const KK = cv.width / W; g.setTransform(KK, 0, 0, KK, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.shadowBlur = 0; g.filter = 'none';
+  g.clearRect(0, 0, W, H);
+  if (t >= T_OFF + 0.3) { g.fillStyle = '#000'; g.fillRect(0, 0, W, H); }
+
+  // ---------- 1) ゲーム画面（透明＝本物のゲームが見える）→ プチュン ----------
+  if (t < T_FLARE) {
+    if (t < T_OFF) return;
+    const u = t - T_OFF;
+    if (u < 0.08) { g.fillStyle = `rgba(255,255,255,${u / 0.08 * 0.6})`; g.fillRect(0, 0, W, H); return; }        // 一瞬白っぽく
+    if (u < 0.3) { const k = 1 - eio((u - 0.08) / 0.22), hh = Math.max(3, H * k * k); g.fillStyle = '#000'; g.fillRect(0, 0, W, CY - hh / 2); g.fillRect(0, CY + hh / 2, W, H); g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(0, CY - hh / 2, W, hh); return; }   // 縦につぶれる
+    if (u < 0.46) { const k = 1 - eio((u - 0.3) / 0.16); g.save(); g.fillStyle = '#fff'; g.shadowColor = '#bfe8ff'; g.shadowBlur = 40; g.fillRect(CX - W / 2 * k, CY - 2.5, W * k, 5); g.restore(); return; }   // 横線が縮む
+    const k = 1 - clamp((u - 0.46) / 0.09); radial(CX, CY, 60 * k + 6, [[0, `rgba(255,255,255,${k})`], [1, 'rgba(160,220,255,0)']]); return;
+  }
+  // ---------- 2) 虹のフレア（参考動画の始まり） ----------
+  if (t < T_LINE) {   // プチュンのあと：真っ暗な間 → 中心に光の点が生まれ、輪が集まりながら大きくなる（上がってくる感じ）
+    const k = clamp((t - (T_FLARE + 0.25)) / (T_LINE - T_FLARE - 0.25)); if (k <= 0) return;
+    g.save(); g.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 4; i++) { const q = ((k * 2.2 + i / 4) % 1), rr = lerp(700, 10, q); g.strokeStyle = `rgba(150,210,255,${q * 0.5 * k})`; g.lineWidth = 2 + q * 3; g.beginPath(); g.arc(CX, CY, rr, 0, 6.283); g.stroke(); }
+    radial(CX, CY, 20 + 160 * k * k, [[0, `rgba(255,255,255,${0.3 + 0.7 * k})`], [0.3, `rgba(150,210,255,${0.4 * k})`], [1, 'rgba(0,0,0,0)']]);
+    { const r = R(7); for (let i = 0; i < 60; i++) { const an = r() * 6.283, d0 = 300 + r() * 600, q = ((k * 1.6 + r()) % 1), d = d0 * (1 - q); g.fillStyle = `rgba(200,235,255,${q * k})`; g.fillRect(CX + Math.cos(an) * d, CY + Math.sin(an) * d * 0.6, 2.5, 2.5); } }
+    g.restore(); return;
+  }
+
+  // ---------- 3) 切り込みからのぞくヨシュア＋セリフ ----------
+  if (t < T_CUT + 0.22) {
+    const ANG = -0.27, u = t - T_LINE;
+    // 開き方：細い光の線 → 一気に開く（行き過ぎて戻る）
+    const op = u < 0.12 ? 0 : eob((u - 0.12) / 0.28, 2.2), SH = 270 * op + Math.sin(t * 6) * 4 * op;
+    let jx = 0, jy = 0;
+    const CH = [...LINE], N = CH.length, ts = (i) => TS[i];
+    for (let i = 0; i < N; i++) { const d = t - ts(i); if (d > 0 && d < 0.14) { const k = (1 - d / 0.14) * (i === 4 || i === 5 ? 26 : 7); jx += Math.sin(t * 131 + i) * k; jy += Math.cos(t * 97 + i) * k; } }
+    g.save(); g.translate(jx, jy);
+    // 黒地にうっすら六角形の模様と流れる線
+    { const r = R(9); g.globalAlpha = 0.12; g.strokeStyle = '#4a7cff'; g.lineWidth = 1; for (let i = 0; i < 26; i++) { const yy = r() * H, xx = ((t * 900 * (0.5 + r())) + r() * W) % (W + 400) - 200; g.beginPath(); g.moveTo(xx, yy); g.lineTo(xx + 200, yy + 200 * Math.tan(ANG)); g.stroke(); } g.globalAlpha = 1; }
+    g.save(); g.translate(CX, CY); g.rotate(ANG);
+    // すき間のまわりの集中線（キャラを強調）
+    if (op > 0) { g.save(); g.globalCompositeOperation = 'lighter'; const r = R(Math.floor(t * 20) + 5); for (let i = 0; i < 70; i++) { const side = r() > 0.5 ? 1 : -1, x = (r() - 0.5) * W * 1.6, y0 = side * (SH / 2 + 10 + r() * 40), len = 120 + r() * 380; g.fillStyle = `rgba(200,235,255,${(0.15 + r() * 0.35) * op})`; g.beginPath(); g.moveTo(x - 3, y0); g.lineTo(x + 3, y0); g.lineTo(x, y0 + side * len); g.closePath(); g.fill(); } g.restore(); }
+    // 上下の細い切り込み（アクセント）
+    for (const [off, hgt, col, sp] of [[-SH / 2 - 46, 10 * op, '#5fd0ff', 1], [SH / 2 + 34, 6 * op, '#ff4fc8', -1], [SH / 2 + 56, 3 * op, '#ffffff', 1]]) {
+      g.save(); g.beginPath(); g.rect(-W, off, W * 2, hgt); g.clip();
+      const lg = g.createLinearGradient(-W, 0, W, 0); for (let i = 0; i <= 8; i++) lg.addColorStop(i / 8, i % 2 ? col : '#ffffff'); g.fillStyle = lg; g.save(); g.translate(((t * 600 * sp) % 400), 0); g.fillRect(-W - 400, off, W * 2 + 800, hgt); g.restore();
+      g.restore();
+    }
+    if (op > 0) {
+      g.save(); g.beginPath(); g.rect(-W, -SH / 2, W * 2, SH); g.clip();
+      // 中：青い空間＋流れる光の線＋ヨシュアの目元（ゆっくり横に流れて寄る）
+      g.rotate(-ANG);
+      const bgg = g.createLinearGradient(0, -200, 0, 200); bgg.addColorStop(0, '#0b2a7a'); bgg.addColorStop(0.5, '#3a74d6'); bgg.addColorStop(1, '#0b2a7a'); g.fillStyle = bgg; g.fillRect(-W, -H, W * 2, H * 2);
+      { const r = R(3); g.globalCompositeOperation = 'lighter'; for (let i = 0; i < 60; i++) { const yy = (r() - 0.5) * 420, sp = 1800 + r() * 2400, xx = W - ((t * sp + r() * W * 2) % (W * 2)); g.fillStyle = `rgba(200,235,255,${0.2 + r() * 0.5})`; g.fillRect(xx - W / 2, yy, 160 + r() * 360, 2 + r() * 2); } g.globalCompositeOperation = 'source-over'; }
+      const zoom = 3.3 + u * 0.12, fx = -942 * zoom * 0.5 + 120 + (u - 0.9) * -150, fy = -1536 * zoom * 0.13;
+      // 色ずれ（赤と青を少しずらして重ねる）
+      g.globalAlpha = 0.18; g.globalCompositeOperation = 'screen'; (ysT && g.drawImage(ysT, fx - 6, fy, 942 * zoom, 1536 * zoom));
+      g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; if (ysF) g.drawImage(ysF, fx, fy, 942 * zoom, 1536 * zoom);
+      // 目のきらめき
+      { const k = 0.5 + 0.5 * Math.sin(t * 9); g.globalCompositeOperation = 'lighter'; for (const ex of [-195, 195]) { g.save(); g.translate(ex + (u - 0.9) * -60 * 0, 10); g.globalAlpha = k * op; g.fillStyle = '#fff'; g.beginPath(); g.moveTo(-60, 0); g.lineTo(0, -4); g.lineTo(60, 0); g.lineTo(0, 4); g.closePath(); g.fill(); g.beginPath(); g.moveTo(0, -40); g.lineTo(3, 0); g.lineTo(0, 40); g.lineTo(-3, 0); g.closePath(); g.fill(); g.restore(); } g.globalCompositeOperation = 'source-over'; }
+      // 走査線
+      g.globalAlpha = 0.1; g.fillStyle = '#000'; for (let yy = -200; yy < 200; yy += 4) g.fillRect(-W, yy, W * 2, 2); g.globalAlpha = 1;
+      g.restore();
+      // ふち：白い光（太め）
+      { g.save(); g.globalCompositeOperation = 'lighter'; const gl = g.createLinearGradient(0, -SH / 2 - 120, 0, SH / 2 + 120); gl.addColorStop(0, 'rgba(90,170,255,0)'); gl.addColorStop(0.2, `rgba(120,190,255,${0.12 * op})`); gl.addColorStop(0.8, `rgba(120,190,255,${0.12 * op})`); gl.addColorStop(1, 'rgba(90,170,255,0)'); g.fillStyle = gl; g.fillRect(-W, -SH / 2 - 120, W * 2, SH + 240); g.restore(); }
+      g.globalCompositeOperation = 'lighter';
+      for (const sgn of [-1, 1]) {
+        const yy = sgn * SH / 2; const lg = g.createLinearGradient(0, yy - 18, 0, yy + 18); lg.addColorStop(0, 'rgba(120,200,255,0)'); lg.addColorStop(0.5, 'rgba(255,255,255,1)'); lg.addColorStop(1, 'rgba(120,200,255,0)'); g.fillStyle = lg; g.fillRect(-W, yy - 18, W * 2, 36);
+      }
+      g.globalCompositeOperation = 'source-over';
+      // 開いた瞬間：光の帯が走る
+      if (u < 0.5) { const v = clamp(u / 0.5); g.globalCompositeOperation = 'lighter'; radial(lerp(-W / 2, W / 2, eo(v)), 0, 260, [[0, `rgba(255,255,255,${1 - v})`], [1, 'rgba(160,220,255,0)']]); g.fillStyle = `rgba(255,255,255,${(1 - v) * 0.8})`; g.fillRect(-W, -SH / 2 - 30, W * 2, SH + 60); g.globalCompositeOperation = 'source-over'; }
+      // 小さな文字（SFっぽい飾り）
+      g.font = '700 16px Orb'; g.fillStyle = 'rgba(160,220,255,.9)'; g.textBaseline = 'bottom';
+      g.fillText('▶ SQUAD LEADER  ///  YOSHUA', -W / 2 + 200 + (t * 40 % 80), -SH / 2 - 62); g.textBaseline = 'top'; g.fillStyle = 'rgba(255,170,230,.9)'; g.fillText('VICTORY PROTOCOL  —  ENGAGED', W / 2 - 700 - (t * 40 % 80), SH / 2 + 70);
+    } else if (u > 0) {
+      // 最初の細い線
+      g.globalCompositeOperation = 'lighter'; const v = u / 0.12; g.fillStyle = '#fff'; g.shadowColor = '#9fe8ff'; g.shadowBlur = 30; g.fillRect(-W * v, -2, W * 2 * v, 4); g.shadowBlur = 0; g.globalCompositeOperation = 'source-over';
+    }
+    // 開いた瞬間に飛ぶガラスの破片
+    { const r = R(21); for (let i = 0; i < 26; i++) { const d = u - 0.12; if (d < 0 || d > 1.2) break; const x0 = (r() - 0.5) * W, sgn = r() > 0.5 ? 1 : -1, vx = (r() - 0.5) * 500, vy = sgn * (300 + r() * 500), s = 8 + r() * 22; shard(x0 + vx * d, sgn * 95 + vy * d + 500 * d * d * sgn * 0.3, s, r() * 6 + d * (r() - 0.5) * 8, d * 9 + r() * 6, 1 - d / 1.2); } }
+    g.restore();
+    // セリフ：画面からはみ出す大きさの立体文字。カメラが斜めに流れながら寄る（文字も斜めに動き続ける）
+    const p = clamp((t - ts(0)) / (T_CUT - ts(0)));
+    const cam = { rot: lerp(-0.28, -0.26, p), sc: lerp(1.0, 1.06, eio(p)), x: lerp(30, -30, p), y: 0 };
+    const r0 = R(42);
+    // 文字の並び：画面の幅いっぱい（カメラが寄ると少しはみ出す程度）
+    const lay = (() => { const L1 = [[0,185],[1,175],[2,175],[3,190],[4,360],[5,300],[6,160]], L2 = [[7,195],[8,185],[9,145],[10,185],[11,185],[12,185],[13,185],[14,145],[15,230]];
+      const out = []; const place = (arr, y0, amp, xo = 0) => { const tot = arr.reduce((s, [, z]) => s + z * 0.93 + 14, 0); let x = -tot / 2 + xo; arr.forEach(([i, z], k) => { const w = z * 0.93 + 14; out[i] = [x + w / 2, y0 + (z >= 300 ? -15 : (i === 6 ? 30 : (k % 2 ? amp : -amp))), z]; x += w; }); };
+      place(L1, -245, 10, -40); place(L2, 215, 10, 230); return out; })();
+    g.save(); g.translate(CX, CY); g.rotate(cam.rot); g.scale(cam.sc, cam.sc); g.translate(cam.x, cam.y);
+    // 「勝つ」の後ろに放射の光（画面いっぱい）
+    if (t > ts(4)) { const k = clamp((t - ts(4)) / 0.2); g.save(); g.globalCompositeOperation = 'lighter'; g.translate(lay[4][0] + 150, -260); g.rotate(t * 0.9); for (let i = 0; i < 18; i++) { g.rotate(Math.PI / 9); g.fillStyle = `rgba(255,220,120,${0.13 * k})`; g.beginPath(); g.moveTo(0, 0); g.lineTo(2200, -90); g.lineTo(2200, 90); g.closePath(); g.fill(); } g.restore(); }
+    for (let i = 0; i < N; i++) {
+      const [lx, ly, sz] = lay[i], d = t - ts(i); const rot = (r0() - 0.5) * 0.36, drift = r0(); if (d < 0) continue;
+      const big = i === 4 || i === 5, v = clamp(d / (big ? 0.2 : 0.13));
+      // 着地後もゆっくり手前へ（大きく）＋上下にただよう
+      const sc = lerp(big ? 3.2 : 2.4, 1, eob(v, big ? 2.6 : 2.2)) * (1 + Math.max(0, d - 0.15) * 0.03) * (big ? 1 + 0.025 * Math.sin(t * 10) : 1);
+      const dy = Math.sin(t * 2.2 + drift * 6) * 6, dx = 0;
+      g.save(); g.translate(lx + dx, ly + dy); g.rotate(rot * (2 - v)); g.scale(sc, sc);
+      g.transform(1, -0.06, -0.22, 1, 0, 0);   // 斜めに傾けた立体
+      g.globalAlpha = clamp(v * 5);
+      if (big) crystalText(CH[i], 0, 0, sz, '900 #px JP', t, { pal: 'gold', seed: i + 3, depth: Math.round(sz * 0.2), ddx: 0.9, ddy: 0.7, glow: 60 });
+      else crystalText(CH[i], 0, 0, sz, '900 #px JP', t, { pal: 'ice', seed: i + 3, depth: Math.round(sz * 0.17), ddx: 0.9, ddy: 0.7, glow: 26, holo: false });
+      g.restore();
+      if (d < 0.2) { g.save(); g.globalCompositeOperation = 'lighter'; const k = 1 - d / 0.2; radial(lx, ly, sz * (big ? 1.6 : 1.1), [[0, `rgba(255,255,255,${k})`], [1, big ? 'rgba(255,190,80,0)' : 'rgba(150,210,255,0)']]); g.restore(); }
+    }
+    g.restore();
+    // 切る直前：画面が光でにじむ
+    if (t > T_CUT - 0.3) { const v = clamp((t - (T_CUT - 0.3)) / 0.3); g.fillStyle = `rgba(255,255,255,${v * 0.25})`; g.fillRect(0, 0, W, H); }
+    // 刀の一閃（強く）：太い刃の軌跡＋画面いっぱいの閃光＋色ずれ。切り口は太く光って残る
+    if (t > T_CUT - 0.15) {
+      const v = clamp((t - (T_CUT - 0.15)) / 0.22);
+      g.save(); g.translate(CX, CY); g.rotate(-0.42); g.globalCompositeOperation = 'lighter';
+      const x1 = lerp(-W * 0.9, W * 0.95, eio(v)), x0 = Math.max(-W * 1.3, x1 - 2200);
+      const k = clamp((t - (T_CUT - 0.1)) / 0.3);
+      // 残る切り口：太い白＋水色のにじみ
+      const cw = 6 + k * 26; const cg = g.createLinearGradient(0, -cw * 4, 0, cw * 4); cg.addColorStop(0, 'rgba(120,200,255,0)'); cg.addColorStop(0.42, 'rgba(160,225,255,.8)'); cg.addColorStop(0.5, 'rgba(255,255,255,1)'); cg.addColorStop(0.58, 'rgba(160,225,255,.8)'); cg.addColorStop(1, 'rgba(120,200,255,0)');
+      g.fillStyle = cg; g.fillRect(-W * 1.3, -cw * 4, x1 + W * 1.3, cw * 8);
+      if (v < 1) {
+        // 刃の軌跡：三日月形の太い帯（外は水色、芯は白）
+        for (const [th, col] of [[150, 'rgba(90,170,255,.45)'], [90, 'rgba(180,230,255,.75)'], [36, 'rgba(255,255,255,1)']]) {
+          const lg = g.createLinearGradient(x0, 0, x1, 0); lg.addColorStop(0, 'rgba(255,255,255,0)'); lg.addColorStop(0.75, col); lg.addColorStop(1, col);
+          g.fillStyle = lg; g.beginPath(); g.moveTo(x0, 0); g.quadraticCurveTo((x0 + x1) / 2, -th * 2.2, x1, -th * 0.5); g.lineTo(x1, th * 0.5); g.quadraticCurveTo((x0 + x1) / 2, -th * 0.4, x0, 0); g.fill();
+        }
+        radial(x1, 0, 520, [[0, 'rgba(255,255,255,1)'], [0.25, 'rgba(200,235,255,.7)'], [1, 'rgba(160,220,255,0)']]);
+        const r = R(Math.floor(t * 60)); for (let i = 0; i < 30; i++) { const an = (r() - 0.5) * 2.6 + Math.PI, l = 80 + r() * 320; g.strokeStyle = 'rgba(255,255,255,.95)'; g.lineWidth = 2 + r() * 3; g.beginPath(); g.moveTo(x1, 0); g.lineTo(x1 + Math.cos(an) * l, Math.sin(an) * l); g.stroke(); }
+      }
+      g.restore();
+      // 刃が抜けた瞬間：画面全体の白い閃光
+      const fl = clamp((t - (T_CUT + 0.06)) / 0.18); if (fl > 0 && fl < 1) { g.fillStyle = `rgba(255,255,255,${0.85 * (1 - fl)})`; g.fillRect(0, 0, W, H); }
+    }
+    return;
+  }
+
+  // ---------- 4) 切られた画面が2つに割れて飛び、奥でレーザー ----------
+  if (t < T_WHITE) {
+    const u = t - (T_CUT + 0.22);
+    // 奥：暗い空間＋レーザー
+    const bgg = g.createRadialGradient(CX, CY, 0, CX, CY, W * 0.7); bgg.addColorStop(0, '#1a1650'); bgg.addColorStop(1, '#020208'); g.fillStyle = bgg; g.fillRect(0, 0, W, H);
+    { const r = R(4); for (let i = 0; i < 200; i++) { g.fillStyle = `rgba(255,255,255,${r() * 0.7})`; g.fillRect(r() * W, r() * H, 2, 2); } }
+    lasers3d(t, clamp(u / 0.15));
+    // 前：さっきの画面（黒＋スリット）が2枚に割れて飛ぶ（紙のように傾きながら）
+    const v = eo(clamp(u / 0.5));
+    for (const sgn of [1, -1]) {
+      g.save(); g.translate(CX, CY); g.rotate(-0.42); g.translate(sgn * v * 120, -sgn * v * 700); g.rotate(sgn * v * 0.15);
+      g.beginPath(); g.rect(-W * 1.5, sgn > 0 ? -H * 2 : 0, W * 3, H * 2); g.clip();
+      g.fillStyle = '#05060f'; g.fillRect(-W * 1.5, -H * 2, W * 3, H * 4);
+      // 切り口の光
+      const lg = g.createLinearGradient(0, -110, 0, 110); lg.addColorStop(0, 'rgba(120,200,255,0)'); lg.addColorStop(0.45, `rgba(170,225,255,${0.8 * (1 - v * 0.5)})`); lg.addColorStop(0.5, `rgba(255,255,255,${1 - v * 0.4})`); lg.addColorStop(0.55, `rgba(170,225,255,${0.8 * (1 - v * 0.5)})`); lg.addColorStop(1, 'rgba(120,200,255,0)'); g.fillStyle = lg; g.fillRect(-W * 1.5, -110, W * 3, 220);
+      g.restore();
+    }
+    // 割れた瞬間の揺れと閃光
+    if (u < 0.12) { g.fillStyle = `rgba(255,255,255,${0.7 * (1 - u / 0.12)})`; g.fillRect(0, 0, W, H); }
+    // 切り口から飛び散る破片と火花
+    { const r = R(33); g.save(); g.translate(CX, CY); g.rotate(-0.42); for (let i = 0; i < 50; i++) { const x0 = (r() - 0.5) * W * 1.4, vx = (r() - 0.5) * 300, vy = (r() - 0.5) * 1400, s = 6 + r() * 20, d = u; if (d > 0.9) break; g.save(); g.rotate(0.42); g.restore(); shard(x0 + vx * d, vy * d + 300 * d * d, s, r() * 6 + d * 5, d * 10 + r() * 6, 1 - d / 0.9); } g.restore(); }
+    // 加速トンネル：中心へ吸い込まれる虹の線＋ストロボ（白へ飛ぶ前の 0.4 秒）
+    { const k = clamp((t - (T_WHITE - 0.42)) / 0.42); if (k > 0) {
+      g.save(); g.globalCompositeOperation = 'lighter'; g.translate(CX, CY); const r = R(Math.floor(t * 30));
+      for (let i = 0; i < 160; i++) { const an = r() * 6.283, r0 = (1 - ((t * 3 + r()) % 1)) * 1300 * (1 - k * 0.5), len = 120 + 500 * k; g.strokeStyle = hsl(an * 57 + t * 900, 100, 65, 0.85); g.lineWidth = 2 + r() * 5 * k; g.beginPath(); g.moveTo(Math.cos(an) * r0, Math.sin(an) * r0); g.lineTo(Math.cos(an) * (r0 + len), Math.sin(an) * (r0 + len)); g.stroke(); }
+      radial(0, 0, 200 + 900 * k, [[0, `rgba(255,255,255,${k})`], [1, 'rgba(255,255,255,0)']]); g.restore();
+      const st = Math.floor((t - (T_WHITE - 0.42)) * 24); if (st % 3 === 0) { g.globalCompositeOperation = 'screen'; g.fillStyle = hsl(st * 70, 100, 70, 0.6); g.fillRect(0, 0, W, H); g.globalCompositeOperation = 'source-over'; }
+    } }
+    // 白く飛ぶ直前
+    if (t > T_WHITE - 0.15) { g.fillStyle = `rgba(255,255,255,${clamp((t - (T_WHITE - 0.15)) / 0.15)})`; g.fillRect(0, 0, W, H); }
+    return;
+  }
+
+  // ---------- 5) 白い世界：立体のクリスタル文字「CHAMPION」 ----------
+  const u = t - T_WHITE, fo = clamp((t - (END - 1.0)) / 1.0);
+  const LAND = (i) => 0.12 + i * 0.07 + 0.42, T_ALL = LAND(7) + 0.05;   // 文字が着地する時刻・全部そろう時刻
+  let shx = 0, shy = 0; const shake = (tt, d, a) => { const q = (u - tt) / d; if (q > 0 && q < 1) { const k = a * (1 - q); shx += Math.sin(t * 131 + tt * 10) * k; shy += Math.cos(t * 97 + tt * 10) * k; } };
+  shake(0, 0.6, 26); for (let i = 0; i < 8; i++) shake(LAND(i), 0.15, 10); shake(T_ALL, 0.7, 34);
+  // ビートに合わせた脈動（そろってから 0.25 秒ごと、2.5 秒後からは 0.5 秒ごと）
+  const beatP = u < T_ALL ? 1 : (u < T_ALL + 2.5 ? 0.25 : 0.5), bph = u < T_ALL ? 1 : ((u - T_ALL) % beatP) / beatP, pulse = u < T_ALL ? 0 : Math.exp(-bph * 6);
+  const rb = clamp(1 - (u - T_ALL - 1.6) / 0.8) * (u > T_ALL ? 1 : 0);   // 虹モードの強さ（そろってから 1.6 秒は全開、その後白へ戻る）
+  g.save(); g.translate(shx, shy); { const zs = 1 + 0.12 * (1 - eo(u / 0.6)) + 0.025 * pulse; g.translate(CX, CY); g.scale(zs, zs); g.translate(-CX, -CY); }
+  // 白〜水色の背景、中心から光の筋（白と淡い青）
+  const bgr = g.createRadialGradient(CX, CY, 0, CX, CY, W * 0.75); bgr.addColorStop(0, '#ffffff'); bgr.addColorStop(0.5, '#eef6ff'); bgr.addColorStop(1, '#b9d6ff'); g.fillStyle = bgr; g.fillRect(-60, -60, W + 120, H + 120);
+  g.save(); g.translate(CX, CY - 20); g.rotate(t * (0.15 + 0.9 * rb));
+  { const r = R(8); for (let i = 0; i < 64; i++) { const an = i / 64 * 6.283 + r() * 0.05, w = 0.01 + r() * 0.03; g.fillStyle = rb > 0 ? hsl(i * 22 + t * 400, 100, 65, (0.35 + r() * 0.3) * rb + (1 - rb) * 0.25) : (i % 3 ? `rgba(150,200,255,${0.18 + r() * 0.2})` : `rgba(255,255,255,${0.7})`); g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(an - w) * 2000, Math.sin(an - w) * 2000); g.lineTo(Math.cos(an + w) * 2000, Math.sin(an + w) * 2000); g.closePath(); g.fill(); } }
+  g.restore();
+  // 中心の光のもや
+  g.save(); g.globalCompositeOperation = 'lighter'; radial(CX, CY, 700, [[0, 'rgba(255,255,255,.9)'], [0.4, 'rgba(200,230,255,.3)'], [1, 'rgba(255,255,255,0)']]); g.restore();
+  // 浮かぶ大きなクリスタル（奥・ぼかし）と手前の破片
+  { const r = R(12); for (let i = 0; i < 22; i++) { const x = r() * W, y = r() * H, s = 30 + r() * 80, sp = (r() - 0.5) * 2; g.save(); shard(x + Math.sin(t * 0.7 + i) * 30, y + Math.cos(t * 0.6 + i) * 20 - u * 20 * (i % 3), s * (i < 10 ? 0.7 : 1), r() * 6 + t * sp * 0.6, t * (1 + r()) + i, i < 10 ? 0.4 : 0.85); g.restore(); } }
+  // 背後の輪（立体に傾いた光の輪）
+  g.save(); g.translate(CX, CY + 10); g.scale(1, 0.28); g.globalCompositeOperation = 'lighter';
+  for (let k = 0; k < 3; k++) { const rr = 560 + k * 90 + Math.sin(t * 2 + k) * 10; g.strokeStyle = k === 1 ? 'rgba(255,255,255,.9)' : 'rgba(120,190,255,.7)'; g.lineWidth = 10 - k * 3; g.setLineDash([200, 40 + k * 30]); g.lineDashOffset = -t * 300 * (k % 2 ? -1 : 1); g.beginPath(); g.arc(0, 0, rr, 0, 6.283); g.stroke(); }
+  g.restore(); g.setLineDash([]);
+  // 衝撃の輪：文字が着地するたび、そろった瞬間は虹の大きな輪、その後はビートごと
+  g.save(); g.globalCompositeOperation = 'lighter';
+  const ring = (tt, d, r1, col, w) => { const q = (u - tt) / d; if (q <= 0 || q >= 1) return; g.globalAlpha = 1 - q; g.strokeStyle = col; g.lineWidth = (w * (1 - q) + 1) * 3; g.globalAlpha = (1 - q) * 0.25; g.beginPath(); g.ellipse(CX - 230, CY, r1 * eo(q), r1 * eo(q) * 0.45, 0, 0, 6.283); g.stroke(); g.globalAlpha = 1 - q; g.lineWidth = w * (1 - q) + 1; g.stroke(); };
+  for (let i = 0; i < 8; i++) ring(LAND(i), 0.4, 500, '#bfe6ff', 10);
+  for (let k = 0; k < 4; k++) ring(T_ALL + k * 0.08, 0.9, 1400, hsl(k * 90 + t * 300, 100, 65), 30);
+  if (u > T_ALL) { const nb = Math.floor((u - T_ALL) / beatP); for (let b = Math.max(0, nb - 2); b <= nb; b++) ring(T_ALL + b * beatP, 0.6, 1100, rb > 0 ? hsl(b * 60, 100, 65) : 'rgba(170,220,255,1)', 14); }
+  g.restore(); g.globalAlpha = 1;
+  // そろった瞬間の破片の大爆発
+  { const d = u - T_ALL; if (d > 0 && d < 1.8) { const r = R(77); for (let i = 0; i < 70; i++) { const an = r() * 6.283, sp = 700 + r() * 1500, s2 = 10 + r() * 30; shard(CX - 230 + Math.cos(an) * sp * d * (1 - d * 0.3), CY + Math.sin(an) * sp * d * 0.6 + 400 * d * d, s2, r() * 6 + d * 8, d * 12 + r() * 6, 1 - d / 1.8, r() > 0.7 ? 'gold' : 'blue'); } } }
+  // 金の輪（後ろ半分）
+  const ringA = clamp((u - T_ALL) / 0.3), ringS = 0.85 + 0.15 * eob(clamp((u - T_ALL) / 0.5), 2) + 0.02 * pulse;
+  // ヨシュア（右、光の縁取り）
+  { const cu = clamp((u - 0.5) / 0.5), cx = lerp(W + 400, W - 330, eob(cu, 1.2)), bob = Math.sin(t * 2.4) * 8, ysc = 0.72;
+    g.save(); g.translate(cx, H * 0.52 + bob); ysG && g.drawImage(ysG, -942 * ysc / 2 - 60 * ysc, -1536 * ysc * 0.36 - 60 * ysc, ysG.width * ysc, ysG.height * ysc); g.restore(); }
+  // CHAMPION：1文字ずつ奥から飛んできて、回転しながら止まる（横の伸び縮みで立体の回転に見せる）
+  { const txt = 'CHAMPION', size = 290, y = CY - 10; g.font = `${size}px Anton`;
+    const ws = [...txt].map(ch => g.measureText(ch).width * 0.92 + 8), tw = ws.reduce((a, b) => a + b, 0); let x = CX - 230 - tw / 2;
+    for (let i = 0; i < txt.length; i++) {
+      const cxl = x + ws[i] / 2; x += ws[i];
+      const t0 = 0.12 + i * 0.07, v = clamp((u - t0) / 0.45); if (v <= 0) continue;
+      const sc = lerp(5, 1, eo(v)) * (1 + 0.06 * pulse), spin = (1 - eo(v)) * 3.2 * Math.PI, yy = y + (1 - eob(v, 1.4)) * -80 + Math.sin(t * 3 + i * 0.8) * 5;
+      const sx = Math.cos(spin) || 0.01;
+      g.save(); g.globalAlpha = clamp(v * 4);
+      g.translate(cxl, yy); g.scale(sc, sc); crystalText(txt[i], 0, 0, size, '#px Anton', t, { sx: Math.abs(sx) < 0.06 ? 0.06 : sx, pal: 'ice', seed: i * 7 + 1, depth: 30, ph: i * 0.06, glow: 40 });
+      g.restore();
+      { const q = (u - LAND(i)) / 0.2; if (q > 0 && q < 1) { g.save(); g.globalCompositeOperation = 'lighter'; radial(cxl, y, 260, [[0, `rgba(255,255,255,${1 - q})`], [1, 'rgba(160,220,255,0)']]); g.restore(); } }
+    }
+    // そろったあと：文字の角にレンズフレア
+    if (u > T_ALL) { const k = Math.exp(-((u - T_ALL) % beatP) * 5); flare(x - 30, y - 120, 0.35 + 0.15 * k, 0.6 * k + 0.2); flare(CX - 230 - tw / 2 + 30, y + 110, 0.3, 0.4 * k + 0.15); }
+    // 下に小さく英字の帯
+    const bu = 0;
+    if (bu > 0) { g.save(); g.globalAlpha = bu; const bw = 900 * eo(bu); const bx = CX - 230; g.fillStyle = 'rgba(10,40,110,.85)'; g.beginPath(); g.moveTo(bx - bw / 2 + 20, y + 150); g.lineTo(bx + bw / 2, y + 150); g.lineTo(bx + bw / 2 - 20, y + 196); g.lineTo(bx - bw / 2, y + 196); g.closePath(); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 2; g.stroke();
+      g.font = '800 26px Orb'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff'; g.shadowColor = '#7fd0ff'; g.shadowBlur = 14; g.fillText('SQUAD VICTORY', bx, y + 174); g.restore(); }
+  }
+  // 金の輪（手前半分）
+  // 上に「JACKPOT」の点滅プレート
+  if (false) { const k = clamp((u - T_ALL - 0.1) / 0.3), on = Math.floor(u * 8) % 2 === 0; g.save(); g.translate(CX - 230, 92); g.scale(lerp(2, 1, eob(k, 2)), lerp(2, 1, eob(k, 2))); g.globalAlpha = k;
+    g.fillStyle = on ? '#ff2a5a' : '#ffcc22'; g.shadowColor = g.fillStyle; g.shadowBlur = 30; g.beginPath(); g.moveTo(-250, -40); g.lineTo(250, -40); g.lineTo(280, 0); g.lineTo(250, 40); g.lineTo(-250, 40); g.lineTo(-280, 0); g.closePath(); g.fill(); g.shadowBlur = 0; g.strokeStyle = '#fff'; g.lineWidth = 4; g.stroke();
+    g.font = '64px Anton'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff'; g.fillText('★ JACKPOT ★', 0, 3); g.restore(); }
+  // キラッ（十字の光）
+  { const r = R(Math.floor(t * 5)); g.save(); g.globalCompositeOperation = 'lighter'; for (let k = 0; k < 10; k++) { const x = r() * W, y = r() * H, s = 20 + r() * 50, a = Math.sin(((t * 5) % 1) * Math.PI); g.globalAlpha = a; radial(x, y, s * 0.6, [[0, 'rgba(255,255,255,1)'], [1, 'rgba(160,210,255,0)']]); g.fillStyle = '#fff'; g.beginPath(); g.moveTo(x - s, y); g.lineTo(x, y - 2.5); g.lineTo(x + s, y); g.lineTo(x, y + 2.5); g.closePath(); g.fill(); g.beginPath(); g.moveTo(x, y - s); g.lineTo(x + 2.5, y); g.lineTo(x, y + s); g.lineTo(x - 2.5, y); g.closePath(); g.fill(); } g.restore(); }
+  g.restore();
+  // そろった瞬間：画面いっぱいの虹ストロボ（白⇔虹を交互に 6 回）
+  { const d = u - T_ALL; if (d > 0 && d < 0.5) { const st = Math.floor(d * 24); g.globalCompositeOperation = 'screen'; g.fillStyle = st % 2 ? `rgba(255,255,255,${0.85 - d})` : hsl(st * 55, 100, 60, 0.75 - d); g.fillRect(0, 0, W, H); g.globalCompositeOperation = 'source-over'; } }
+  // ビートごとの白い瞬き（虹モードの間）
+  if (rb > 0 && u > T_ALL + 0.5) { g.fillStyle = `rgba(255,255,255,${0.35 * pulse * rb})`; g.fillRect(0, 0, W, H); }
+  // 画面のふちの電球
+  if (u > T_ALL) ledFrame(t, clamp((u - T_ALL) / 0.2), rb);
+  // 白から入るフラッシュ
+  if (u < 0.35) { g.fillStyle = `rgba(255,255,255,${1 - u / 0.35})`; g.fillRect(0, 0, W, H); }
+  // 最後はそのままゲーム画面へフェード
+  cv.style.opacity = String(1 - fo);
+}
+
+
+// ===== 再生（main.js から { jackpot: { art } } を受け取る）=====
+const audio = new Audio('../assets/fx_jackpot/champion_jackpot.mp3'); audio.preload = 'auto';
+const START = T_OFF - 0.08;   // 録画用の「ゲーム画面だけの1秒」は飛ばす
+let playing = false;
+let RS = 1;   // 内部の描画解像度（重いPCでは自動で下げる）
+function fit() { const dpr = Math.min(devicePixelRatio || 1, 1.5), w = window.innerWidth, h = window.innerHeight; const cap = Math.min(1, 2200 / (w * dpr)) * RS; cv.width = Math.round(w * dpr * cap); cv.height = Math.round(h * dpr * cap); cv.style.width = w + 'px'; cv.style.height = h + 'px'; }
+async function play(art) {
+  if (playing) return; playing = true;
+  try {
+    await Promise.all([setArt(art || '../assets/characters/yoshua/full.png'), document.fonts.load('100px Anton'), document.fonts.load('900 100px JP'), document.fonts.load('800 26px Orb')]);
+    // 文字の立体の下ごしらえ（初回の引っかかり防止）。見えないまま一通り描いておく
+    cv.style.visibility = 'hidden'; cv.width = 192; cv.height = 108;   // 小さいキャンバスで素早く（文字の立体は論理サイズで保存されるので本番でもそのまま使える）
+    const pw = performance.now(); for (let t = T_OFF; t < END; t += 0.2) draw(t); console.log('prewarm ms', Math.round(performance.now() - pw), 'glyphs', CT.size);
+    RS = 1; fit();
+    g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, cv.width, cv.height); cv.style.opacity = '1'; cv.style.visibility = 'visible';
+  } catch (e) { console.error(e); }
+  try { audio.currentTime = START; await audio.play(); } catch { /* 音が出なくても絵は出す */ }
+  const t0 = performance.now(); let last = t0; const slow = [];
+  const loop = () => {
+    const now = performance.now(), t = START + (now - t0) / 1000;
+    if (t >= END) { g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, cv.width, cv.height); playing = false; window.hudApi && window.hudApi.send({ jackpotDone: true }); return; }
+    // カクつくときは解像度を一段ずつ下げる（最低 0.5）
+    slow.push(now - last); last = now; if (slow.length > 24) slow.shift();
+    if (slow.length === 24 && RS > 0.5) { const m = [...slow].sort((a, b) => a - b)[12]; if (m > 30) { RS = Math.max(0.5, RS - 0.2); fit(); slow.length = 0; } }
+    draw(t);   // draw は論理座標（1920 幅）で描く
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+}
+if (window.hudApi) window.hudApi.onInput((msg) => { if (msg && msg.jackpot) play(msg.jackpot.art); });
+window.__jackpotPlay = play;
+
+</script></body></html>

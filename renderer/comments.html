@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><title>OverLIVE コメント</title>
+<style>
+html,body{margin:0;background:transparent;overflow:hidden;width:100%;height:100%}
+#wrap{position:absolute;width:478px;height:342px;transform-origin:0 0;opacity:0;transition:opacity .5s}
+#wrap.show{opacity:1}
+/* 2026-10-30：コメントがないときは右上の「LIVE ◯人」だけ残し、コメントが来たらそこから開く */
+#panel{position:absolute;left:0;top:0;width:478px;height:342px;transform-origin:405px 35px;transform:scale(.18);opacity:0;transition:transform .45s cubic-bezier(.2,.9,.25,1.15),opacity .3s}
+#wrap.open #panel{transform:none;opacity:1}
+#wrap:not(.open) #panel{transition:transform .45s cubic-bezier(.5,0,.75,0),opacity .35s .1s}
+#pill{position:absolute;left:338px;top:20px;height:30px;padding:0 14px 0 12px;display:flex;align-items:center;gap:8px;border-radius:15px;
+ background:linear-gradient(90deg,rgba(33,67,122,.78),rgba(22,48,92,.72));border:1.6px solid #b5e9fe;box-shadow:0 0 10px rgba(30,140,255,.55);
+ font-family:'Oxanium','Segoe UI',sans-serif;font-weight:700;font-size:16px;color:#e9f8ff;white-space:nowrap;transition:opacity .3s .25s}
+#wrap.open #pill{opacity:0;transition:opacity .15s}
+#pill i{width:10px;height:10px;border-radius:50%;background:#ff5aa8;box-shadow:0 0 6px #ff5aa8;animation:beat 1.6s ease-in-out infinite}
+#pill b{color:#9fe6ff;font-weight:700}
+@keyframes beat{0%,100%{opacity:1}50%{opacity:.35}}
+svg{position:absolute;left:0;top:0}
+#rows{position:absolute;left:22px;top:70px;width:432px;height:246px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-start}
+.row{position:relative;padding:6px 8px 8px 40px;border-bottom:1px solid rgba(159,230,255,.18);transition:opacity .6s;animation:in .35s ease-out}
+.row.gift{background:linear-gradient(90deg,rgba(255,90,168,.45),rgba(255,90,168,.05));border:1.4px solid #ff9ccf;border-radius:2px 0 0 0}
+.row.out{opacity:0}
+@keyframes in{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+.ic{position:absolute;left:8px;top:8px;width:26px;height:20px}
+.nm,.tx,.gf{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:'M PLUS Rounded 1c','Yu Gothic UI','Meiryo',sans-serif;font-weight:800;paint-order:stroke}
+.nm{font-size:19px;color:#9fe6ff;text-shadow:0 0 3px #0b1a33,0 0 2px #0b1a33}
+.tx{font-size:22px;color:#fff;text-shadow:0 0 3px #0b1a33,0 0 2px #0b1a33;margin-top:2px}
+.gf{font-size:17px;color:#ffd1ea;margin-top:2px;text-shadow:0 0 3px #3a0b25}
+.hdr{font-family:'Oxanium','Segoe UI',sans-serif;font-weight:700;font-size:20px;letter-spacing:3px;fill:#e9f8ff}
+.hdrj{font-family:'M PLUS Rounded 1c','Yu Gothic UI','Meiryo',sans-serif;font-weight:800;font-size:15px;fill:#ffb7dc}
+.cnt{font-family:'Oxanium','Segoe UI',sans-serif;font-weight:700;font-size:15px;fill:#9fe6ff}
+</style></head>
+<body>
+<div id="wrap">
+<div id="panel">
+<svg id="frame" width="478" height="342" viewBox="2040 324 478 342">
+<defs>
+ <filter id="glow" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="4"/></filter>
+ <filter id="sh" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="2.5"/></filter>
+ <linearGradient id="body" x1="0" y1="0" x2="0" y2="1"><stop id="b0" offset="0" stop-color="#21437a" stop-opacity=".24"/><stop id="b1" offset="1" stop-color="#16305c" stop-opacity=".24"/></linearGradient>
+ <linearGradient id="tab" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2a5fae"/><stop offset="1" stop-color="#21437a"/></linearGradient>
+</defs>
+<path class="outer" id="p-sh" d="M2046,330 L2484,330 L2512,358 L2512,642 L2496,660 L2070,660 L2046,636 Z" transform="translate(4,5)" fill="#000" opacity=".25" filter="url(#sh)"/>
+<path class="outer" id="p-body" d="M2046,330 L2484,330 L2512,358 L2512,642 L2496,660 L2070,660 L2046,636 Z" fill="url(#body)"/>
+<path d="M2062,344 L2340,344 L2322,374 L2062,374 Z" fill="url(#tab)" stroke="#b5e9fe" stroke-width="1.6"/>
+<text class="hdr" x="2080" y="366">COMMENT</text>
+<text class="hdrj" x="2220" y="366">コメント</text>
+<circle cx="2380" cy="359" r="5" fill="#ff5aa8"/><text class="cnt" x="2392" y="365" id="livecnt">LIVE</text>
+<line x1="2062" y1="386" x2="2496" y2="386" stroke="#9fe6ff" stroke-width="1.2" opacity=".55"/>
+<g id="ticks" stroke="#b5e9fe" stroke-width="1.2" opacity=".7"></g>
+<path class="outer" id="p-glow" d="M2046,330 L2484,330 L2512,358 L2512,642 L2496,660 L2070,660 L2046,636 Z" fill="none" stroke="#1e8cff" stroke-width="10" opacity=".55" filter="url(#glow)"/>
+<path class="outer" id="p-line" d="M2046,330 L2484,330 L2512,358 L2512,642 L2496,660 L2070,660 L2046,636 Z" fill="none" stroke="#b5e9fe" stroke-width="4" stroke-linejoin="round"/>
+<path id="p-inner" d="M2052,336 L2481,336 L2506,361 L2506,639 L2493,654 L2073,654 L2052,633 Z" fill="none" stroke="#ffffff" stroke-width="1.2" opacity=".75"/>
+</svg>
+<div id="rows"></div>
+</div>
+<div id="pill"><i></i>LIVE<b id="pillcnt"></b></div>
+</div>
+<script src="comments.js"></script>
+</body></html>

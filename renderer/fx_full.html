@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<title>AQUA HUD fx</title>
+<style>html,body{margin:0;background:transparent;overflow:hidden;width:100%;height:100%}canvas{position:fixed;left:0;top:0}
+#glow{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .4s;
+  box-shadow:inset 0 0 120px 40px rgba(255,179,217,.55), inset 0 0 260px 120px rgba(184,240,255,.35)}
+body.glow #glow{opacity:1;animation:gpulse 1.3s ease-in-out infinite}
+@keyframes gpulse{0%,100%{opacity:.75}50%{opacity:1}}
+/* チャンピオンの全身絵カットイン：右からスッと入って、ふわふわ揺れて、右へ抜ける */
+#cut{position:fixed;right:4vw;bottom:0;height:88vh;pointer-events:none;opacity:0;display:none;--glow:rgba(184,240,255,.95)}
+#cut img{height:100%;display:block;filter:drop-shadow(0 0 10px #fff) drop-shadow(0 0 26px var(--glow))}
+#cut.on{display:block;animation:cutIn .55s cubic-bezier(.2,1.3,.4,1) forwards, cutOut .6s ease-in forwards 3.9s}
+#cut.on img{animation:cutFloat 2.2s ease-in-out infinite .55s}
+#band{position:fixed;right:-10vw;bottom:-10vh;width:70vw;height:130vh;pointer-events:none;opacity:0;transform:skewX(-14deg);
+  background:linear-gradient(90deg,transparent 0%,var(--glow,rgba(184,240,255,.5)) 45%,rgba(255,255,255,.55) 55%,transparent 100%);filter:blur(18px)}
+#band.on{animation:bandIn .5s ease-out forwards, cutOut .6s ease-in forwards 3.9s}
+@keyframes cutIn{0%{opacity:0;transform:translateX(45vw)}100%{opacity:1;transform:translateX(0)}}
+@keyframes cutOut{0%{opacity:1;transform:translateX(0)}100%{opacity:0;transform:translateX(30vw)}}
+@keyframes cutFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.2vh)}}
+@keyframes bandIn{0%{opacity:0;transform:skewX(-14deg) translateX(40vw)}100%{opacity:.55;transform:skewX(-14deg) translateX(0)}}</style>
+</head>
+<body><div id="glow"></div><div id="band"></div><div id="cut"><img alt=""></div><canvas id="c"></canvas>
+<script src="fx.js"></script>
+<script src="fx_full.js"></script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+{
+  "name": "aqua-kawaii-hud-trial",
+  "version": "0.6.0",
+  "description": "OverLIVE 体験版",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "start:windowed": "electron . --windowed --demo-bg",
+    "test": "node test/model.test.js && node test/reader.test.js && node test/mychara.test.js",
+    "dist:win": "electron-builder --win zip --x64"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^44.9.1",
+    "electron-builder": "^26.15.3",
+    "playwright-core": "^1.64.1",
+    "pngjs": "^7.0.0"
+  },
+  "build": {
+    "appId": "local.aqua.kawaii.hud",
+    "productName": "OverLIVE_Trial",
+    "files": [
+      "main.js",
+      "ocr_server.js",
+      "preload.js",
+      "edition.js",
+      "edition.json",
+      "mychara.js",
+      "nowplaying_main.js",
+      "comments_main.js",
+      "renderer/**",
+      "assets/**"
+    ],
+    "win": {
+      "target": [
+        "zip"
+      ]
+    },
+    "directories": {
+      "output": "dist"
+    },
+    "extraFiles": [
+      {
+        "from": "README.md",
+        "to": "README.md"
+      },
+      {
+        "from": "launchers",
+        "to": ".",
+        "filter": [
+          "*.bat"
+        ]
+      }
+    ],
+    "asar": false
+  },
+  "dependencies": {
+    "tesseract.js": "^5.1.1"
+  }
+}

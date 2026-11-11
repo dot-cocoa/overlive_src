@@ -1,0 +1,302 @@
+{
+ "_comment": "画面読み取り設定。座標は 2560x1080 の画面上のpx（ゲームのHUD表示サイズ=既定）。違う解像度では高さ比で拡縮し、anchor 側の端を基準にする。",
+ "baseWidth": 2560,
+ "baseHeight": 1080,
+ "sampleFps": 60,
+ "regions": {
+  "hp": {
+   "anchor": "left",
+   "x": 177,
+   "y": 1010,
+   "w": 238,
+   "h": 7
+  },
+  "shield": {
+   "anchor": "left",
+   "x": 177,
+   "y": 999,
+   "w": 233,
+   "h": 4
+  },
+  "anchor": {
+   "anchor": "left",
+   "x": 80,
+   "y": 925,
+   "w": 120,
+   "h": 20
+  },
+  "badge": {
+   "anchor": "left",
+   "x": 26,
+   "y": 918,
+   "w": 41,
+   "h": 41
+  }
+ },
+ "bars": {
+  "hp": {
+   "fullWidth": 237,
+   "maxGap": 3
+  },
+  "shield": {
+   "segmentPitch": 46.33,
+   "endPad": 3,
+   "maxGap": 9,
+   "minPixels": 12
+  },
+  "anchor": {
+   "minValue": 220,
+   "minPixels": 60
+  }
+ },
+ "_anchorNote": "HUD表示中かの判定：進化ゲージ（最大レベル等）の白い文字。枠とキャラで覆わない（常に透過の窓の中）",
+ "peeks": {
+  "aqua1": {
+   "part": "player",
+   "points": [
+    [
+     365,
+     967
+    ],
+    [
+     346,
+     976
+    ],
+    [
+     361,
+     984
+    ]
+   ],
+   "test": "item",
+   "dx4": 30,
+   "min": 1,
+   "closeMs": 300,
+   "openFrames": 4,
+   "glyph": 1
+  },
+  "aqua8": {
+   "part": "knock",
+   "points": [
+    [
+     337,
+     968
+    ],
+    [
+     351,
+     976
+    ],
+    [
+     363,
+     984
+    ]
+   ],
+   "test": "bright",
+   "min": 2,
+   "closeMs": 1200,
+   "openFrames": 4
+  },
+  "aqua9": {
+   "part": "knock",
+   "points": [
+    [
+     463,
+     952
+    ],
+    [
+     481,
+     966
+    ],
+    [
+     476,
+     985
+    ]
+   ],
+   "test": "red",
+   "min": 2,
+   "closeMs": 1200,
+   "openFrames": 4
+  },
+  "aqua2": {
+   "part": "tactical",
+   "points": [
+    [
+     629,
+     974
+    ],
+    [
+     632,
+     978
+    ],
+    [
+     634,
+     982
+    ],
+    [
+     636,
+     986
+    ],
+    [
+     639,
+     990
+    ],
+    [
+     642,
+     993
+    ],
+    [
+     643,
+     998
+    ],
+    [
+     645,
+     1001
+    ],
+    [
+     646,
+     1004
+    ],
+    [
+     649,
+     1008
+    ],
+    [
+     650,
+     1011
+    ],
+    [
+     651,
+     1014
+    ]
+   ],
+   "test": "vivid",
+   "min": 2,
+   "closeMs": 4000,
+   "openFrames": 8
+  }
+ },
+ "peekTests": {
+  "bright": {
+   "minMax": 150,
+   "minLuma": 140
+  },
+  "red": {
+   "minR": 150,
+   "maxG": 80,
+   "maxB": 80
+  },
+  "item": {
+   "glyphMin": 140,
+   "glyphSpread": 60,
+   "minSat": 0.22,
+   "minV": 0.45,
+   "bgSat": 0.3,
+   "bgV": 0.55
+  }
+ },
+ "peekFps": 15,
+ "mates": [
+  {
+   "hp": {
+    "x": 139,
+    "y": 819,
+    "w": 160,
+    "h": 6
+   },
+   "shield": {
+    "x": 139,
+    "y": 813,
+    "w": 156,
+    "h": 3
+   },
+   "name": {
+    "x": 140,
+    "y": 794,
+    "w": 96,
+    "h": 15
+   }
+  },
+  {
+   "hp": {
+    "x": 139,
+    "y": 885,
+    "w": 160,
+    "h": 6
+   },
+   "shield": {
+    "x": 139,
+    "y": 879,
+    "w": 156,
+    "h": 3
+   },
+   "name": {
+    "x": 140,
+    "y": 860,
+    "w": 96,
+    "h": 15
+   }
+  }
+ ],
+ "mateBars": {
+  "hp": {
+   "fullWidth": 159,
+   "maxGap": 3
+  },
+  "shield": {
+   "segmentPitch": 30.9,
+   "endPad": 2,
+   "maxGap": 7,
+   "minPixels": 8
+  },
+  "name": {
+   "minValue": 200,
+   "minPixels": 12
+  }
+ },
+ "mateFps": 30,
+ "chat": {
+  "_comment": "チャット欄の範囲（ゲーム座標）。--show-regions で確認して合わせる",
+  "x": 50,
+  "y": 480,
+  "w": 760,
+  "h": 230,
+  "fps": 1.5,
+  "minBright": 175
+ },
+ "compass": {
+  "_comment": "方位計の目盛り（試合中だけある）。射撃訓練場では無いのでミニマップ・方位の枠を隠す",
+  "x": 830,
+  "y": 52,
+  "w": 900,
+  "h": 14,
+  "every": 4
+ },
+ "hudCheck": {
+  "digitMin": 110,
+  "digitMax": 300,
+  "ringWhiteMax": 6
+ },
+ "ultIcon": {
+  "_comment": "ウルトのアイコン（エイム中は消える）",
+  "x": 1252,
+  "y": 958,
+  "w": 56,
+  "h": 52
+ },
+ "shield5": {
+  "points": [
+   [
+    372,
+    1001
+   ],
+   [
+    386,
+    1001
+   ],
+   [
+    400,
+    1001
+   ]
+  ],
+  "min": 2
+ }
+}

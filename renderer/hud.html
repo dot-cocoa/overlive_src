@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; style-src 'self' 'unsafe-inline'; font-src 'self'">
+<title>OverLIVE</title>
+<link rel="stylesheet" href="hud.css">
+</head>
+<body>
+<img id="demo-bg" alt="">
+<!-- 枠だけ。窓の中はすべて透明で、ゲーム側の表示（バー・文字・アイコン・キャラ画像）がそのまま見える。
+     枠のパーツは manifest.json(v4) から hud.js が組み立てる -->
+<div id="stage"></div>
+<div id="regions"></div>
+<div id="perf" hidden></div>
+<script src="model.js"></script>
+<script src="reader.js"></script>
+<script src="translate.js"></script>
+<script src="fx.js"></script>
+<script src="hud.js"></script>
+<script src="obs_fx.js"></script>
+</body>
+</html>

@@ -1,0 +1,120 @@
+html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; width: 100%; height: 100%;
+  user-select: none; -webkit-user-select: none; cursor: default; }
+#demo-bg { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; }
+body.demo-bg #demo-bg { display: block; }
+#stage { position: fixed; inset: 0; transition: opacity 160ms linear; }
+/* ゲーム側の HUD が消えている間（マップ・メニュー等）は枠も隠す */
+body.game-hud-hidden #stage { opacity: 0; transition: none; }   /* 消すときは一瞬で（ゲームの HUD と同時に消える） */
+
+.group { position: absolute; left: 0; top: 0; transform-origin: 0 0; contain: layout paint; }
+.group.off { display: none; }
+.layer, .lid, .lid img { position: absolute; left: 0; top: 0; display: block; }
+.layer { opacity: 0; transition: opacity 140ms linear; will-change: opacity; }
+.layer.v-normal { opacity: 1; }
+.lid { display: none; }
+.lid.closed { display: block; }
+.lid img { opacity: 0; transition: opacity 140ms linear; }
+.lid img.v-normal { opacity: 1; }
+
+/* 状態ごとの色違い（通常の上に重ねる） */
+.group.s-hit .v-hit { opacity: 1; animation: blink 300ms steps(1, end) 3; }
+.group.s-shield_break .v-shield_break { opacity: 1; filter: saturate(1.7) brightness(1.15); animation: sb-pop 2.2s ease-out; }
+/* 2026-10-24：シールド破壊の色が分かりにくかったので、割れた瞬間に強く光らせ、色を濃くして長めに出す */
+@keyframes sb-pop { 0% { filter: saturate(2.4) brightness(2); } 12% { filter: saturate(2) brightness(1.2); } 24% { filter: saturate(2.4) brightness(1.8); } 40% { filter: saturate(2) brightness(1.25); } 100% { filter: saturate(1.7) brightness(1.15); } }
+.group.s-down .v-hit { opacity: 1; }
+.group.s-healing .v-healing { opacity: 1; transition-duration: 300ms; }
+.group.s-cooldown .v-cooldown { opacity: 1; }
+.group.s-active .v-active { opacity: 1; transition-duration: 60ms; }
+.group.s-ready .v-active { animation: ready-pulse 1200ms ease-in-out infinite; }
+.group.s-ring .v-ring { opacity: 1; animation: ring-pulse 1600ms ease-in-out infinite; }
+@keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } }
+@keyframes ready-pulse { 0%, 100% { opacity: 0; } 50% { opacity: .8; } }
+@keyframes ring-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+body.no-minimap #g-minimap { display: none; }
+
+/* 少女（表情9種）：切り取らずに置き、パネルの左下の角からはみ出さない所だけ切る */
+#g-girl { contain: layout paint; }
+#girl-move { position: absolute; inset: 0; will-change: transform; }
+body.idle-motion #girl-move { animation: breathe 3200ms ease-in-out infinite; }
+/* 2026-10-24：動きが小さくて分からなかったので、少し大きくした */
+@keyframes breathe { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-3px) scale(1.015); } }
+/* 2026-10-25：表情の切り替えで、新旧の絵が同時に半透明になって少女が一瞬すけて見えていた（同じ絵どうしの切り替えでも起きる）。
+   新しい表情はすぐ不透明で上に出し、古い表情はその下で消す */
+.face { position: absolute; opacity: 0; transition: opacity 160ms linear; will-change: opacity; z-index: 1; }
+.face.on { opacity: 1; transition: none; z-index: 2; }
+
+/* プレイヤー名（アプリが描く） */
+#g-name { white-space: nowrap; color: #f0fcff; font-weight: 700; line-height: 1;
+  font-family: "Yu Gothic UI", "Meiryo UI", "Meiryo", "Noto Sans CJK JP", "Noto Sans JP", sans-serif;
+  text-shadow: 0 0 3px var(--name-glow, rgba(80,200,255,.95)), 0 0 7px var(--name-glow, rgba(60,170,255,.8)), 0 0 1px var(--name-glow, #6ed2ff); }
+#g-name span { display: inline-block; transform-origin: 0 50%; }
+
+/* 読み取り範囲の確認表示（範囲の2px外側に線を引く＝読み取りを邪魔しない） */
+#regions .rg { position: fixed; outline: 1px dashed #ff3df0; outline-offset: 2px; pointer-events: none; }
+#regions .pk { position: fixed; width: 1px; height: 1px; outline: 1px solid #ffe04a; outline-offset: 2px; pointer-events: none; }
+
+#perf { position: fixed; left: 12px; top: 40%; padding: 8px 10px; font: 13px/1.35 Consolas, monospace;
+  color: #bff; background: rgba(0, 10, 30, .75); border-radius: 6px; white-space: pre; z-index: 99; }
+
+/* ---- エフェクト：ネオン管の中を流れる光 ---- */
+.fx-flow { position: absolute; left: 0; top: 0; pointer-events: none; opacity: .95;
+  background: linear-gradient(100deg, transparent 0%, transparent 36%, var(--flow-color, rgba(140,235,255,.75)) 45%, #ffffff 50%, var(--flow-color, rgba(140,235,255,.75)) 55%, transparent 64%, transparent 100%);
+  background-size: 260% 100%; background-repeat: no-repeat; --flow-dur: 3.4s;
+  animation: fx-sweep calc(var(--flow-dur) * var(--fx-slow, 1)) linear infinite; will-change: background-position; }
+/* 光の帯が左の外から右の外まで1回通り抜ける（帯は1本だけ。繰り返しで途中に2本目が出て切れて見えないように） */
+@keyframes fx-sweep { 0% { background-position: 100% 0; } 100% { background-position: 0% 0; } }
+.group.s-healing .fx-flow { animation-duration: calc(var(--flow-dur, 3s) * .45 * var(--fx-slow, 1));
+  background-image: linear-gradient(100deg, transparent 0%, transparent 38%, rgba(190,255,220,.4) 46%, #eafff2 50%, rgba(190,255,220,.4) 54%, transparent 62%, transparent 100%); }
+.group.s-hit .fx-flow { animation-duration: calc(.45s * var(--fx-slow, 1)); animation-iteration-count: 2;
+  background-image: linear-gradient(100deg, transparent 0%, transparent 30%, rgba(255,200,210,.5) 44%, #fff 50%, rgba(255,200,210,.5) 56%, transparent 70%, transparent 100%); }
+.group.s-shield_break .fx-flow { animation-duration: calc(.7s * var(--fx-slow, 1));
+  background-image: linear-gradient(100deg, transparent 0%, transparent 34%, rgba(230,200,255,.5) 46%, #fff 50%, rgba(230,200,255,.5) 54%, transparent 66%, transparent 100%); }
+body.no-fx .fx-flow, body.no-fx #fx-canvas { display: none; }
+/* 枠全体の呼吸（グロー） */
+body:not(.no-fx):not(.no-breathe) .layer.v-normal { animation: fx-breathe calc(3.2s * var(--fx-slow, 1)) ease-in-out infinite; }
+@keyframes fx-breathe { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.12); } }
+#fx-canvas { position: fixed; left: 0; top: 0; pointer-events: none; z-index: 50; }
+
+/* チャット翻訳 */
+#g-chat { display: flex; flex-direction: column; justify-content: flex-end; gap: 3px; contain: layout; }
+.chat-line { font: 700 17px/1.25 "Yu Gothic UI", "Meiryo UI", "Meiryo", "Noto Sans CJK JP", "Noto Sans JP", sans-serif; color: #fff;
+  background: rgba(8, 16, 40, .72); border-left: 3px solid var(--name-glow, #6ed2ff); border-radius: 0 8px 8px 0; padding: 3px 10px 4px 8px; width: fit-content; max-width: 100%;
+  animation: chat-in .25s ease-out; }
+.chat-line .en { display: block; font-size: 12px; font-weight: 500; color: #b9d8ff; opacity: .9; }
+.chat-line .ja { display: block; text-shadow: 0 0 4px var(--name-glow, rgba(80,200,255,.9)); }
+@keyframes chat-in { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
+
+/* 射撃訓練場など、方位計が無い場面ではミニマップ・方位の枠を出さない */
+body.no-mapui #g-compass { display: none; }
+/* 2026-10-26：ミニマップは方位と別に（降下中は方位だけ出てミニマップは出ない） */
+body.no-minimapui #g-minimap { display: none; }
+
+/* エイム中（ゲームのウルトアイコンが消えている）はウルトの枠も消す */
+body.no-ult #g-ult, body.no-ult #g-ult2 { visibility: hidden; }
+
+/* デスボックスを開いた時の枠（中央下のバナー）。開いている間だけ出す。ゲームのいつもの HUD は消えているので、このウィンドウは隠さない */
+#g-db_player, #g-db_mate1, #g-db_mate2 { display: none; }
+body.db-open #g-db_player, body.db-open.db-m1 #g-db_mate1, body.db-open.db-m2 #g-db_mate2 { display: block; }
+body.part-deathbox.game-hud-hidden #stage { opacity: 1; }
+
+/* メニューで非表示にした項目 */
+.uoff { display: none !important; }
+
+/* キャラなし（枠だけ） */
+#g-girl.nochara { display: none !important; }
+/* 体験版マーク：小さく・はっきり（録画・配信にも映る） */
+#g-trial { font: 700 13px/1 "Segoe UI", "Yu Gothic UI", sans-serif; letter-spacing: .06em; color: rgba(255,255,255,.92);
+  padding: 3px 8px; border-radius: 4px; background: rgba(10,22,44,.55); border: 1px solid rgba(120,220,255,.7);
+  text-shadow: 0 0 4px rgba(80,200,255,.9); white-space: nowrap; transform-origin: 0 0; }
+
+/* 枠の背景画像（パネルの部分だけ。マスクで形を切り抜く） */
+.bgimg { position: absolute; left: 0; top: 0; pointer-events: none; background-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%; mask-size: 100% 100%; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; }
+/* 調整モード：背景の入る枠を点線で示す */
+body.bg-adjust .group[id^="g-"]:has(> .bgimg) { outline: 2px dashed rgba(255, 179, 217, .9); outline-offset: -2px; }
+
+/* 2026-10-28：のばせる枠（オクタンの2本目のゲージが出ている間） */
+.seg { position: absolute; left: 0; top: 0; }
+.group:not(.ext) > .seg-m, .group:not(.ext) > .seg-b { display: none; }
+.group.ext { width: var(--ext-w) !important; }
+.group.ext > .seg-a { clip-path: inset(0 var(--seg-cut) 0 0); }
